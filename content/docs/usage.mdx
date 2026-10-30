@@ -1,0 +1,126 @@
+---
+title: 用量与日志
+description: 按账号或模型汇总 token、查看请求记录、手工构造请求排查
+---
+
+## 用量汇总
+
+```bash
+lax usage                          # 全部账号，按账号分组
+lax usage --since 7d --by account
+lax usage --since 12h --by model
+lax usage --by day
+```
+
+汇总请求数、输入 token、输出 token、缓存读 token、缓存写 token 与估算花费。
+
+`--since` 只接受相对时长：数字加 `h`、`d` 或 `w`，如 `24h`、`7d`、`3w`，不接受日期。`--by` 支持 `account`、`model`、`day` 三种分组。
+
+估算花费按「这一行请求的账号 + 这一行请求的模型」现算单价，改价之后历史请求按新价重算，库里不保存单价快照。因此同一个模型在套餐不同的两个账号上，同一段时间的花费可以不一样，这是正常的。
+
+| 项 | 算法 |
+| --- | --- |
+| 单价来源 | 账号覆盖价 → 供应商级标价，都没有就是未定价；两层的关系与写入方式见[模型单价](/docs/models#模型单价) |
+| 未命中缓存的输入 | `未命中输入 × 输入单价` |
+| 缓存读 | `缓存读 × 缓存读单价`；这一项没定价时按输入单价算 |
+| 缓存写 | `缓存写 × 缓存写单价`；这一项没定价时按输入单价算 |
+| 输出 | `输出 × 输出单价` |
+| 独立的思考 | `独立思考 × 输出单价`（判定见下表） |
+| 某一项缺价 | 这一项不计入，同组里其它有价的项照算 |
+| 一组里每个计价项都缺价 | 这一组写 `未定价`，`--json` 里 `cost` 是 `null` |
+
+`未定价` 不是 0：0 表示这些请求确实不花钱（免费或打包在套餐里），未定价表示不知道多少钱，两者在输出里必须分开。补价用 `lax model price set <模型> --in N --out N`；只有某个账号的套餐不同，才加 `--account` 写覆盖价。
+
+金额精度自适应：`0` 写 `0.00`，小于 `0.01` 的写四位小数（决策请求一次调用常见是万分之几），其余写两位。
+
+有行缺价时，表格末尾会说明情况并给出补价命令：
+
+| 情况 | 末尾的一句 |
+| --- | --- |
+| 每一组都缺价 | `花费未定价：这些请求用到的模型没有单价，用 lax model price set <模型> --in N --out N 补上（缓存单价可选，未填时回退输入价）` |
+| 只有部分组缺价 | `有 N 行没有单价，它们不计入合计；补价用 lax model price set <模型> --in N --out N` |
+| 全部有价且合计为 0 | `花费为 0：单价已填且都是 0，这些请求算免费` |
+
+合计行按同样规则：把有价格的组加起来；一组有价的都没有时，合计写 `未定价`。
+
+「未命中输入」是入账时归一化的结果。各协议对输入 token 是否包含缓存的做法不同，需先统一口径：
+
+| 出站协议 | 输入 token 的含不含缓存 | 归一化 |
+| --- | --- | --- |
+| anthropic | `input_tokens` 已排除缓存 | 直接使用 |
+| openai-chat、openai-responses | `prompt_tokens` 包含命中缓存的部分 | 减去 `缓存读`（减到 0 为止） |
+| gemini | `promptTokenCount` 包含命中缓存的部分 | 同上 |
+| systemone | `input_tokens` 已排除缓存（决策请求没有缓存读写） | 直接使用 |
+
+请求记录里显示的输入 token 仍是上游原值，归一化只影响花费。探测产生的请求写入请求记录，但不计入用量汇总。
+
+思考 token 的口径按上游上报的数字判定，不按协议猜：
+
+| 上游怎么报 | 判定 | 是否计价 |
+| --- | --- | --- |
+| `total` 大于 `prompt + completion`（思考是输出之外的一项） | 独立项 | 是，按输出单价 |
+| `total` 等于 `prompt + completion`（思考含在输出里，OpenAI 官方即如此） | 子集 | 否，只显示 |
+| 没报 `total` | 按子集处理 | 否，只显示 |
+
+gemini 的 `thoughtsTokenCount` 与 chat 的 `completion_tokens_details.reasoning_tokens` 都走这条判定。
+
+## 请求记录
+
+```bash
+lax log tail
+lax log tail -n 50
+lax log tail --follow
+```
+
+每条记录输出一行：时间、入站协议 → 出站协议、模型、账号、状态、输入与输出 token、思考 token、缓存读与缓存写 token、耗时、错误信息。
+
+模型列在请求名与真实模型名不同时写成 `fast → glm-4.6`（命中[模型别名](/docs/models/alias)），相同时只写一个名字。`--json` 里 `model` 是客户端请求的名字、`model_used` 是实际使用的名字，两者总是同时存在。
+
+缓存字段的来源：
+
+| 上游协议 | 缓存读 | 缓存写 |
+| --- | --- | --- |
+| anthropic | `cache_read_input_tokens` | `cache_creation_input_tokens` |
+| openai-chat、openai-responses | `prompt_tokens_details.cached_tokens` | 无，恒为 0 |
+| gemini | `cachedContentTokenCount` | 无，恒为 0 |
+| systemone | 无，恒为 0 | 无，恒为 0 |
+
+上游没报缓存时两列都是 `0`。
+
+与[冷却](/docs/accounts/failover#冷却与失败转移)相关的失败同样单独记录，错误列写的是上游原话，例如：
+
+```
+01-02 14:01:52 anthropic→openai-chat  deepseek-v4-pro  deepseek-1  429 ✗  0  0  200ms  upstream: rate limit exceeded
+```
+
+这一行只说明本次请求被拒。账号的冷却给了多久、还剩多久，看 `lax account ls` 的「冷却至」列（如 `冷却至 15:04:05`）。
+
+协议列显示为 `anthropic→openai-chat` 表示该次请求经过跨协议转换；两列一致则为直通。
+
+## 手工构造请求
+
+`call` 在本进程内起一个临时网关（监听随机端口），再用真实 HTTP 请求打进去。这样走的是与外部客户端完全相同的路径，排查问题时不依赖客户端：
+
+```bash
+lax call "hi" --model deepseek-v4-pro
+lax call "hi" --model deepseek-v4-pro --debug      # 输出选号过程与上游状态
+lax call "hi" --model gpt-5.1 --protocol responses # 指定入站协议
+lax call "hi" --model deepseek-v4-pro --stream     # 流式
+lax call "hi" --model gemini-2.5-pro --protocol gemini
+```
+
+`--debug` 输出选中账号、选择依据、实际请求地址以及上游返回的状态码与内容类型。选择依据指优先级与冷却状态，判定规则见[选号依据](/docs/models#选号依据)。不加 `--debug` 时只打最终响应，看不到选号过程。
+
+默认按 anthropic 入站构造请求，`--protocol` 可在 anthropic、chat、responses、gemini 四种入站协议之间切换。`--system` 追加系统提示词，`--max-tokens` 指定长度上限。
+
+systemone 不是对话协议，`call` 发不了它：模型以 systemone 出站时命令直接报错，并指向 [`lax decide`](/docs/cli/decide)。
+
+## 环境自检
+
+```bash
+lax doctor
+```
+
+逐项检查配置文件、数据目录、数据库与端口。
+
+迁移机器、升级版本以及网关无法启动时，均应先执行该命令。检查项与 `--json` 输出见[系统命令](/docs/cli/system#doctor)。

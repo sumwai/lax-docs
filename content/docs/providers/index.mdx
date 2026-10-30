@@ -1,0 +1,122 @@
+---
+title: 供应商与路由
+description: 内置供应商、自定义地址、五种协议的默认协议与模型列表地址
+---
+
+供应商指一家上游服务，`lax provider` 这一组命令维护它的三样东西：
+
+- base URL：本网关访问上游的主地址，相对路径的路由拼在它后面；
+- 路由：一条线协议对应的地址路径。线协议是本网关与上游之间交换请求的格式，共 `anthropic`、`openai-chat`、`openai-responses`、`gemini`、`systemone` 五种，各自对应一个 flag（`--anthropic`、`--openai`、`--responses`、`--gemini`、`--systemone`）；
+- 默认协议：账号没有指定出站协议时采用的那条路由，取值规则见[默认协议的确定规则](#默认协议的确定规则)。
+
+账号挂载在供应商上，请求发往哪条路径与用哪种请求体编码，都由账号的出站协议决定。
+
+路径的两种写法、规整规则与决策模型接入见[路径与决策模型](/docs/providers/paths)；附加请求头的声明与覆盖顺序见[附加请求头](/docs/providers/headers)。每个子命令的参数表与示例见[供应商命令](/docs/cli/provider)。
+
+## 查看已配置供应商
+
+```bash
+lax provider ls
+```
+
+输出供应商、`base_url`、默认协议、模型列表地址与各协议的路由。未声明任何路由的供应商会在默认协议列显示 `-`。这不属于错误状态，只表示该供应商当前无法承接请求。
+
+## 内置供应商
+
+初始化后自带以下记录，多数情况下无需手工添加：
+
+| 供应商 | base URL | 已声明路由 |
+| --- | --- | --- |
+| `anthropic` | `https://api.anthropic.com` | anthropic |
+| `openai` | `https://api.openai.com` | openai-chat、openai-responses |
+| `deepseek` | `https://api.deepseek.com` | openai-chat、anthropic |
+| `moonshot` | `https://api.moonshot.cn` | openai-chat |
+| `kimi` | `https://api.moonshot.cn` | openai-chat |
+| `openrouter` | `https://openrouter.ai/api` | openai-chat |
+| `ollama` | `http://127.0.0.1:11434` | openai-chat |
+| `commandcode` | `https://api.commandcode.ai/provider/v1` | openai-chat、anthropic |
+| `google-gemini` | `https://generativelanguage.googleapis.com` | gemini |
+
+同一供应商提供多种协议时对应多条路由。例如 deepseek 同时提供 openai 兼容端点与 anthropic 兼容端点。
+
+## 新增供应商
+
+`provider add` 仅用于新建，名称已存在时改用[修改供应商](#修改供应商)。新建时必须至少声明一条协议路由。
+
+```bash
+lax provider add myco --base-url https://api.example.com \
+    --openai /v1/chat/completions \
+    --anthropic /anthropic/v1/messages \
+    --default-protocol openai
+```
+
+路由取值支持相对路径（拼在 `--base-url` 之后）与整条地址（直接使用），两种写法可以混用。同一供应商的几条协议分属不同域名时，逐条写整条地址、省略 `--base-url`：
+
+```bash
+lax provider add bigmodel \
+    --anthropic https://open.bigmodel.cn/api/anthropic/v1/messages \
+    --openai https://open.bigmodel.cn/api/coding/paas/v4/chat/completions \
+    --responses https://open.bigmodel.cn/api/v1/responses \
+    --models-path https://open.bigmodel.cn/api/coding/paas/v4/models
+```
+
+`--base-url` 可以省略，条件是每条路由与 `--models-path` 都是整条地址。只要有一条是相对路径，`--base-url` 就必须给出，缺了它整次写入被拒绝，并指出是哪条路由。
+
+`--models-path` 是供应商级覆盖，取值同样支持相对路径与整条地址。`model sync` 请求清单时优先用它，取值顺序见[模型列表地址的取值顺序](#模型列表地址的取值顺序)。不填时按各路由的 `models_path` 取，openai-chat 路由还会自动推导一条。
+
+写法规整、会被拒绝的取值与 gemini 占位符见[路径与决策模型](/docs/providers/paths)。
+
+## 修改供应商
+
+`provider set` 只写入传入的字段，未传入的字段保持不变。传空值属于用法错误，删除需显式声明：
+
+```bash
+# 补充一条 responses 路由，并替换默认协议
+lax provider set myco --responses /v1/responses --default-protocol responses
+
+# 覆盖模型列表地址（供应商级覆盖，优先于各路由自身的配置）
+lax provider set myco --models-path /v1/models
+```
+
+`provider unset` 用于删除单项配置，操作幂等：目标项不存在时不报错，仅输出提示。删除后不保留任何路由的操作会被拒绝，该场景应使用 `provider rm`。
+
+```bash
+lax provider unset myco anthropic
+lax provider unset myco systemone
+lax provider unset myco models-path
+lax provider rm myco
+```
+
+字段清单与 `--force` 的语义见[供应商命令](/docs/cli/provider#unset)。
+
+## 默认协议的确定规则
+
+`--default-protocol` 显式指定的值优先，但必须落在已声明的路由上，否则整次写入被拒绝。未指定时按固定顺序取第一条已声明的路由：`openai-chat` → `openai-responses` → `anthropic`。gemini 与 systemone 不在这个顺序里，要当默认协议就得显式指定。
+
+命令行上的协议写作 `anthropic`、`openai`、`responses`、`gemini`、`systemone`，也接受全名 `openai-chat`、`openai-responses`。落库与 `provider ls` 里显示的是全名。
+
+默认协议只是缺省值：一个模型既没探出协议、也没在模型目录里声明协议时，转发按供应商默认协议算它的有效出站协议（见[查看探测结果](/docs/models#查看探测结果)）。
+
+## 模型列表地址的取值顺序
+
+`model sync` 需要请求一个模型清单地址，取值顺序如下：
+
+1. 供应商级 `--models-path`；
+2. 账号出站协议对应路由的 `models_path`；
+3. 同供应商其它协议中，按协议名排序的第一条非空 `models_path`；
+4. 以上均无时，按 `base_url` 后缀推导。
+
+写入 openai-chat 路由时未提供 `models_path` 的，会自动推导为尾部 `/chat/completions` 替换成 `/models`。手工填写的值不会被推导结果覆盖。
+
+gemini 与 systemone 的路由不参与这条推导：这两条协议没有可猜的清单后缀，不填就取不到地址。
+
+## 删除供应商
+
+```bash
+lax provider rm myco
+lax provider rm myco --force
+```
+
+仍有账号在用这家供应商时默认报错并列出账号；加 `--force` 后删除供应商与路由，并在同一个事务里停用这些账号。账号之后需要换到别的供应商，或重建同名供应商，再 `account enable`。
+
+删除后历史请求记录保留；因 `--force` 被停用的账号仍保留原名与请求记录的账号归属。

@@ -1,0 +1,77 @@
+---
+title: 供 Agent 读取
+description: 把文档交给 AI 代理时的入口、格式与推荐做法
+---
+
+站点同时提供 HTML 与 Markdown 两种表示。把链接交给 AI 代理时，优先给出 Markdown 入口，可避免代理自行解析 HTML 时的结构丢失。
+
+## 入口一览
+
+| 用途 | 地址 | 说明 |
+| --- | --- | --- |
+| 文档索引 | `/llms.txt` | 每一条链接都指向对应页面的 Markdown 原文 |
+| 全文合并 | `/llms-full.txt` | 所有页面按顺序拼接为单个文件 |
+| 单页 Markdown | `<页面地址>.md` | 例如 `/docs/accounts.md` |
+| 站点地图 | `/sitemap.xml` | 全部页面地址，供爬虫与代理遍历 |
+| 抓取说明 | `/robots.txt` | 注释中标注了上述入口 |
+
+## 两种取回方式
+
+页面地址后加 `.md`：
+
+```bash
+curl -s http://127.0.0.1:3000/docs/accounts.md
+```
+
+也可以保留原地址，改用 `Accept` 头声明期望的表示：
+
+```bash
+curl -s -H 'Accept: text/markdown' http://127.0.0.1:3000/docs/accounts
+```
+
+请求站点根地址时携带该头，直接返回文档索引：
+
+```bash
+curl -s -H 'Accept: text/markdown' http://127.0.0.1:3000/
+```
+
+两种方式返回同一份 Markdown，响应头带 `charset=utf-8`，中文不会乱码。
+
+Markdown 原文的标题行带着页面地址，小节标题行尾带着锚点。
+
+代理因此可以只引用其中一小节：
+
+```text
+# 账号 (/docs/accounts)
+## 添加账号 [#添加账号]
+```
+
+方括号里的锚点与 HTML 中该小节的 `id` 是同一个值，把页面地址与它拼起来即得 `/docs/accounts#添加账号`。
+
+## 页面内的声明
+
+每张文档页面的 HTML 头中包含一条指向 Markdown 原文的链接，代理只取 HTML 时也能据此切换：
+
+```html
+<link rel="alternate" type="text/markdown" href="/docs/accounts.md"/>
+```
+
+页面标题下方另有 `Markdown` 按钮，可直接打开当前页的原文。
+
+响应头里同样带这条线索，只读响应头的客户端不需要解析 HTML：
+
+```text
+Link: </docs/accounts.md>; rel="alternate"; type="text/markdown",
+      </llms.txt>; rel="index"; type="text/plain"
+```
+
+## 推荐用法
+
+- 只需要整体了解能力：给出 `/llms-full.txt` 或 `/llms.txt`。
+- 针对单个主题提问：给出对应页面的 `.md` 地址，上下文更短。
+- 直接给出站点根地址时，代理可能只抓到一个 HTML 页面。此时在提示里补一句「先读 /llms.txt」，或直接改发 Markdown 链接。
+- 首页的「供 AI 代理」按钮会生成一段可直接粘贴的提示语，地址随当前访问端口变化。
+
+## 内容边界
+
+站点只描述公开用法。内部设计文档、排障记录与源码结构不在站点内，`/docs` 下的路径之外没有其它内容可读。

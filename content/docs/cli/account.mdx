@@ -1,0 +1,230 @@
+---
+title: 账号命令
+description: account 组各子命令的参数、示例、输出列与 --json 字段
+---
+
+`account` 组维护上游账号。一个账号由名称、凭据与一组可用模型组成；地址、默认协议都由账号所属的供应商行派生，账号上不保存副本。
+
+| 子命令 | 作用 |
+| --- | --- |
+| `add` | 新增账号，凭据加密后入库 |
+| `ls` | 列出账号、模型计数与当前状态 |
+| `set` | 更换凭据；`update` 是同义词 |
+| `test` | 先请求模型列表，再发一条最小请求，判定凭据与连通性 |
+| `enable` | 启用账号并清除冷却 |
+| `disable` | 停用账号，不再参与选号 |
+| `rm` | 删除账号，历史请求记录保留 |
+
+账号的完整概念与选号规则见[账号](/docs/accounts)。
+
+## add
+
+```bash
+lax account add <名称> --provider <厂商> --key <key> \
+    [--models <模型>] [--priority N]
+```
+
+| 参数 | 必填 | 说明 | 默认值 |
+| --- | --- | --- | --- |
+| `<名称>` | 是 | 位置参数；也可写成 `--name <名称>`，两处都给时 `--name` 优先 | — |
+| `--provider` | 是 | 供应商名，地址与默认协议都从这家供应商读；不在供应商表里会报错并列出现有供应商 | — |
+| `--key` | 是 | 上游凭据，三种给法见下文；取不到值属于用法错误 | 读环境变量 |
+| `--models` | 否 | 手工声明该账号可用的模型，逗号分隔。名字写入模型目录，并把该账号标为可用；不带长度、价格与协议 | 等 `model sync` |
+| `--priority` | 否 | 同模型多个账号时的选用顺序，数值小的先试 | `100` |
+
+凭据的三种给法：
+
+```bash
+lax account add ds --provider deepseek --key sk-xxx         # 直接写值
+lax account add ds --provider deepseek --key - < key.txt    # 从标准输入读
+LAX_KEY=sk-xxx lax account add ds --provider deepseek       # 读环境变量
+```
+
+`--key` 留空时依次读 `LAX_KEY` 与 `LAX_API_KEY`。`--key -` 需要管道或文件；直接在终端上运行时命令报错退出，不会挂在输入上等。
+
+示例：
+
+```bash
+# 内置供应商，凭据直接从环境变量取
+LAX_KEY=sk-xxx lax account add ds --provider deepseek
+
+# 手填模型，适合上游清单不提供决策模型的供应商
+lax account add ts1 --provider typesafe --key sk-xxx --models jev-latest
+
+# 同一个供应商的第二个账号，优先级调低，主账号不可用时才用它
+lax account add ds2 --provider deepseek --key sk-yyy --priority 200
+```
+
+会被拒绝的情况：
+
+| 情况 | 结果 |
+| --- | --- |
+| 没有名称，或没有 `--provider` | 用法错误，打印完整用法行 |
+| 三种给法都取不到凭据 | 用法错误，列出三种给法 |
+| `--price-in`、`--price-out`、`--price-cache-read`、`--price-cache-write` | 用法错误：单价属于「供应商 × 模型」，改用 `lax model price set`，套餐不同时加 `--account` 覆盖 |
+| 名称已存在 | 报错，提示换名称或先运行 `account rm` |
+| `--base-url` 或 `--protocol` | 用法错误：地址与默认协议只在供应商行上，改用 `provider add` / `provider set` 声明 |
+| 供应商不在供应商表里 | 报错，列出现有供应商；名称接近时给出最接近的一项 |
+
+人读输出一行，括号里依次是供应商、有效默认协议与掩码后的凭据：
+
+```text
+已添加 ds（deepseek，openai-chat，凭据 sk-x…）
+```
+
+`--json` 输出：
+
+| 字段 | 内容 |
+| --- | --- |
+| `name` | 账号名 |
+| `provider` | 供应商名 |
+| `protocol` | 该供应商的有效默认协议；供应商没有声明路由时是空串 |
+| `base_url` | 供应商的 base URL；没有时是空串 |
+| `models` | 写入完成后该账号可用的模型名 |
+| `key` | 掩码后的凭据，只露前几位 |
+
+输出里没有价格字段：单价属于模型，见[模型单价](/docs/models#模型单价)。
+
+写完后的下一步是拉清单与探活：
+
+```bash
+lax model sync --account ds
+lax model probe --account ds
+```
+
+## ls
+
+```bash
+lax account ls
+lax account ls --json
+```
+
+无参数。人读输出七列：
+
+| 列 | 内容 |
+| --- | --- |
+| 名称 | 账号名 |
+| 厂商 | 所属供应商 |
+| 地址 | 供应商的 base URL，空值写 `-` |
+| 协议 | 供应商的有效默认协议；模型上探出别的协议时写成 `openai-chat + 另 2 种` |
+| 模型 | `12 可用 / 47 已登记`、`0 可用 / 47 已登记` 或 `无模型（先 model sync）` |
+| 优先级 | 选号顺序，小的先试 |
+| 状态 | `正常`、`冷却至 15:04:05` 或 `停用` |
+
+「可用」只数可达性为 `allowed` 的模型行；「已登记」是同步、手填与探活留下的全部行。没有可用模型的账号不参与选号。
+
+`--json` 每项字段：
+
+| 字段 | 内容 |
+| --- | --- |
+| `name`、`provider`、`base_url` | 账号名、供应商名与派生的地址 |
+| `protocol` | 供应商的有效默认协议 |
+| `protocols` | 该账号会走的全部协议，默认协议在前，其余为探活发现的协议 |
+| `models` | 该账号可用的模型名 |
+| `models_usable`、`models_synced` | 与文本输出「N 可用 / M 已登记」同一组数 |
+| `priority` | 优先级 |
+| `enabled` | 是否启用 |
+| `status` | `正常`、`冷却至 …` 或 `停用` |
+| `cooldown_until` | 冷却结束时间，Unix 秒；未冷却时为 0 |
+| `last_error` | 最近一次失败的上游原话，没有时为空串 |
+
+## set
+
+```bash
+lax account set <名称> --key <key>
+```
+
+`set` 只换凭据，不碰单价、探测结论与可达性。`update` 是 `set` 的同义词，两个写法等价。
+
+| 情况 | 结果 |
+| --- | --- |
+| 给了 `--key` | 更换凭据；冷却、最近错误与连续失败次数在同一次写入中清零，账号重新启用 |
+| 不给 `--key` | 凭据仍从标准输入或环境变量取；三处都取不到属于用法错误 |
+| 给了 `--price-in` 等价格参数 | 用法错误，退出码 2；改价用 `lax model price set` |
+
+```bash
+lax account set ds --key sk-yyy                        # 轮换凭据，账号随之重新启用
+lax account set ds --key - < key.txt                   # 从标准输入读新凭据
+lax model price set deepseek-v4-pro --account ds --in 1 --out 4  # 改这个账号的价格
+```
+
+人读输出一行：账号名、供应商与掩码后的新凭据，并说明冷却与失败计数已清零。
+
+`--json` 字段：
+
+| 字段 | 内容 |
+| --- | --- |
+| `name` | 账号名 |
+| `key_rotated` | 固定为 `true` |
+| `key` | 掩码后的新凭据 |
+| `cooldown_cleared`、`fail_streak_cleared`、`enabled` | 固定为 `true`，三项都随换凭据完成 |
+
+## test
+
+```bash
+lax account test <名称>
+```
+
+分两阶段，成败按第二阶段算：
+
+| 阶段 | 发什么 | 能证明什么 |
+| --- | --- | --- |
+| 列表接口 | `GET` 模型列表地址，不消耗 token | 地址与连通性正常，并报出上游模型数 |
+| 最小调用 | 一条 `max_tokens=1` 的真实请求，消耗少量 token | 凭据是否有效；这一步才是判成败的依据 |
+
+列表接口 2xx 之后仍要走最小调用：公开的列表接口对任何 key 都回 200，光凭它判不出凭据好坏。列表接口返回 404、405、403，或者取不到列表地址、连不上时，也走最小调用，备注里写清列表那一步为什么没成。列表接口自己返回 401、429、5xx 或其它 4xx 时已经是结论，不再花一次调用。
+
+最小调用用的模型名取账号模型列表的第一项；账号还没有模型时用 `default`，备注里会说明。
+
+人读输出一行，其中状态码与耗时来自判定成败的那一步：
+
+| 列 | 内容 |
+| --- | --- |
+| 账号 | 账号名 |
+| 状态 | `正常` 或 `失败` |
+| HTTP | 判定那一步的状态码 |
+| 耗时 | 判定那一步的耗时 |
+| 上游模型数 | 列表接口报出的模型数；没走列表接口或返回的不是清单时写 `-` |
+| 备注 | 结论说明，含另一阶段为什么没成 |
+
+`--json` 字段：
+
+| 字段 | 内容 |
+| --- | --- |
+| `account` | 账号名 |
+| `stage` | 判定成败的阶段，`models` 或 `call` |
+| `status`、`ok` | HTTP 状态码与是否通过 |
+| `models` | 列表接口报出的模型数 |
+| `latency` | 耗时，带单位的字符串 |
+| `message` | 结论说明 |
+| `list` | 列表阶段自己的结论，字段同上五项；调用阶段失败不会抹掉它 |
+
+探活失败时退出码为 1，stderr 写明阶段、状态码与原因。这一项命令只判凭据与连通性，单个模型是否可用由 [`model probe`](/docs/cli/model#probe) 判定。
+
+## enable 与 disable
+
+```bash
+lax account enable <名称>
+lax account disable <名称>
+```
+
+| 命令 | 行为 |
+| --- | --- |
+| `enable` | 启用账号，同时清除冷却与失败计数 |
+| `disable` | 停用账号，原因记为「手工停用」；停用账号不参与选号，但仍出现在账号列表与模型清单里 |
+
+人读输出 `已启用 <名称>` 或 `已停用 <名称>`。`--json` 输出 `{"name": "...", "enabled": true|false}`。
+
+账号名不存在时报错，不写库。
+
+## rm
+
+```bash
+lax account rm <名称>
+```
+
+删除账号及其模型行。历史请求记录保留，账号在记录里显示为 `-`。
+
+人读输出 `已删除 ds，历史请求记录保留`。`--json` 输出 `{"removed": "ds"}`。
+
+需要保留探测结果与请求记录归属时，用 `set` 换凭据，不要删号重建。

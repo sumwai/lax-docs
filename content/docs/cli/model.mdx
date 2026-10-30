@@ -1,0 +1,341 @@
+---
+title: 模型命令
+description: model 组各子命令的参数、示例、输出列与 --json 字段，含模型别名
+---
+
+`model` 组维护模型目录、账号上的可达性结论、模型单价与模型别名。
+
+| 子命令 | 作用 |
+| --- | --- |
+| `ls` | 列出网关可提供的模型、账号状态与目录元数据 |
+| `sync` | 从上游拉取模型清单，名字写入模型目录 |
+| `probe` | 逐个模型发真实请求，把可达性写进账号 |
+| `price` | 模型单价：`set`、`unset`、`ls` |
+| `alias` | 模型别名：`set`、`unset`、`ls` |
+
+同步与探活的分工、清单格式与判定规则见[模型](/docs/models)；单价的归属与取值顺序见[模型单价](/docs/models#模型单价)；别名的匹配与冲突规则见[模型别名](/docs/models/alias)。
+
+## ls
+
+```bash
+lax model ls
+lax model ls --provider deepseek
+lax model ls --account ds
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `--provider` | 只看这个供应商的账号 |
+| `--account` | 只看这个账号 |
+
+两个参数都不给时列出全部账号提供的模型。
+
+人读输出七列：
+
+| 列 | 内容 |
+| --- | --- |
+| 模型 | 模型名 |
+| 账号 | 提供该模型的账号与可达性，如 `ds(可用)`；多个账号用 `、` 分隔 |
+| 协议 | 只有一个账号时直接写有效出站协议；多个账号时逐个写成 `账号 协议` |
+| 上下文长度 | 目录里的值，缺失时写 `-` |
+| 最大输出 | 目录里的值，缺失时写 `-` |
+| 支持协议 | 目录声明的协议集合，空集合写 `-` |
+| 输入价 / 输出价（每百万 token） | 合并之后的单价：账号覆盖价 → 供应商级标价；两项都没有时写 `未定价` |
+
+账号列里的可达性有五种：`可用`（探测通过）、`待探活`（已登记但没探过）、`无权`、`不存在`、`失败`。
+
+无任何模型记录时输出一句提示，指向 `model sync`、`model probe` 与 `account add --models`。
+
+`--json` 每项字段：
+
+| 字段 | 内容 |
+| --- | --- |
+| `model` | 模型名 |
+| `accounts` | 数组，每项含 `name`、`status`（可达性）、`protocol`（该账号在这个模型上的有效出站协议） |
+| `context_window`、`max_output` | 上下文长度与最大输出，未知时为 `null` |
+| `protocols` | 目录声明的协议集合，空集合为 `[]` |
+| `price_in`、`price_out` | 合并之后的单价，未定价时为 `null` |
+
+## sync
+
+```bash
+lax model sync
+lax model sync --provider deepseek --account ds
+lax model sync --account ds --endpoint /v1/models
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `--provider` | 只同步这个供应商的账号 |
+| `--account` | 只同步这个账号 |
+| `--endpoint` | 临时覆盖模型列表路径，只影响这一次调用：相对该厂商 base URL 的完整路径，或整条地址 |
+
+两个筛选参数都不给时处理全部账号。同步只写清单，不消耗 token，也不判定可用性。
+
+人读输出五列：
+
+| 列 | 内容 |
+| --- | --- |
+| 账号 | 账号名 |
+| 厂商 | 所属供应商 |
+| 模型 | 上游报出的模型数 |
+| 新增 | 这次新写入的模型数 |
+| 备注 | 失败原因，成功时为空 |
+
+末尾固定输出下一步提示 `lax model probe`。
+
+`--json` 输出数组，每项字段：`account`、`provider`、`models`、`added`，失败时多一个 `error`。
+
+单个账号同步失败不影响其它账号，最终退出码为 1，stderr 写明失败账号数。清单格式识别、gemini 过滤与分页规则见[同步模型清单](/docs/models#同步模型清单)。
+
+## probe
+
+```bash
+lax model probe
+lax model probe --account ds --limit 5
+lax model probe --account ds --model deepseek-v4-pro
+lax model probe --account ds --concurrency 8 --refresh
+```
+
+| 参数 | 说明 | 默认值 |
+| --- | --- | --- |
+| `--provider` | 只处理这个供应商的账号 | 全部账号 |
+| `--account` | 只处理这个账号 | 全部账号 |
+| `--sync` | 探活前先拉一次上游模型清单 | 关 |
+| `--model` | 只探这一个模型；库里没有这一行也照探 | 全部待探模型 |
+| `--limit` | 每个账号最多探多少个待探模型，跳过的模型不占额度 | `0`，表示全部 |
+| `--concurrency` | 每个账号的并发请求数 | `4` |
+| `--max-age` | 已有结论的新鲜期，超期重探；`0` 与 `--refresh` 等价 | `24h` |
+| `--refresh` | 忽略新鲜度，全部重探 | 关 |
+
+账号一个模型行都没有时，`probe` 自动先同步一次；给了 `--model` 时不自动同步。
+
+探活请求按该模型的有效出站协议构造：
+
+| 出站协议 | 探活请求 |
+| --- | --- |
+| anthropic、openai-chat、openai-responses、gemini | `max_tokens=1` 的对话请求 |
+| systemone | 最小决策请求：`state` 为 `ping`，一个 `noul` 型问题 |
+
+每次探活写一个可达性：
+
+| 可达性 | 触发条件 | 新鲜期内重复执行 | 进候选池 |
+| --- | --- | --- | --- |
+| `allowed` | 探测通过 | 跳过 | 是 |
+| `forbidden` | 上游返回 403 等权限错误 | 跳过 | 否 |
+| `missing` | 上游返回 404 | 跳过 | 否 |
+| `error` | 其它错误（含 401） | 重探 | 否 |
+| 无记录 | 已登记但从未探过 | 重探 | 否 |
+
+人读输出，每个账号先一行汇总，再一张明细表：
+
+```text
+ds：本次探活 3 个，跳过 44 个，可用 2，无权 1，不存在 0，失败 0；可达 2 个
+账号  模型              状态   HTTP  耗时    备注
+ds    deepseek-v4-pro   可用   200   412ms
+```
+
+| 列 | 内容 |
+| --- | --- |
+| 账号 | 账号名 |
+| 模型 | 模型名 |
+| 状态 | `可用`、`无权`、`不存在`、`失败`、`凭据被拒` |
+| HTTP | 上游状态码 |
+| 耗时 | 单次请求耗时 |
+| 备注 | 上游原话或判定说明 |
+
+进度行只画在终端里的 stderr 上，`--json` 时不出。
+
+`--json` 输出被探的模型数组，每项字段：`account`、`model`、`status`、`http_status`、`latency_ms`、`message`。被跳过的模型不出现，空结果是 `[]`。
+
+退出码与停用规则：
+
+| 情况 | 结果 |
+| --- | --- |
+| 任一模型返回 401 | 立即停用该账号，停止处理后续账号，退出码 1 |
+| 整轮没有任何可用模型 | 退出码 1，说明是全部跳过、探了都不行，还是清单没拉到 |
+| `--sync` 有账号同步失败 | 先输出已探结果，再以退出码 1 结束 |
+
+`--limit`、`--model` 只探一部分时，之前探通的模型仍是 `allowed`，不会因为这一轮没探到而掉出候选池。
+
+## price set
+
+```bash
+lax model price set <模型> [--provider <供应商>] [--account <账号>] \
+    [--in N] [--out N] [--cache-read N] [--cache-write N]
+```
+
+单价属于「供应商 × 模型」：不给 `--account` 时写的是供应商级标价，整个供应商下的账号都读它；给了 `--account` 时只写这个账号在这个模型上的覆盖价。
+
+| 参数 | 必填 | 说明 | 默认值 |
+| --- | --- | --- | --- |
+| `<模型>` | 是 | 位置参数，一次写一个模型，名字要写全 | — |
+| `--provider` | 否 | 供应商级标价落在哪家供应商；不给时按模型名唯一确定 | 按模型名推导 |
+| `--account` | 否 | 写这个账号的覆盖价；与 `--provider` 互斥 | 写供应商级标价 |
+| `--in`、`--out`、`--cache-read`、`--cache-write` | 否 | 四项单价，单位都是每百万 token，至少给一项 | 不给的项不变 |
+
+只写命令行上给过的那几项，没给过的保持原值。`0` 是合法值（免费或打包），负数是用法错误。
+
+会报错的情况：
+
+| 情况 | 结果 |
+| --- | --- |
+| 四项单价一项都没给 | 用法错误，退出码 2 |
+| 某一项是负数 | 用法错误，退出码 2 |
+| `--provider` 与 `--account` 同时给 | 用法错误，退出码 2 |
+| 模型不在任何厂商的目录里 | 报错，指向 `model sync`、`model probe` 与 `model ls` |
+| 同名模型在多家厂商的目录里，又没给 `--provider` | 报错并列出候选，要求显式指定一家 |
+| 账号没有这个模型的行 | 报错：先用 `model sync` 或 `model probe` 建一行 |
+
+```bash
+lax model price set deepseek-v4-pro --in 2 --out 8
+lax model price set deepseek-v4-pro --cache-read 0.2 --cache-write 2.5
+lax model price set deepseek-v4-pro --account ds --in 1 --out 4
+```
+
+人读输出两行，第一行只列这次写的项：
+
+```text
+已写入厂商 deepseek 的厂商级标价：deepseek-v4-pro 输入价 2.00、输出价 8.00（每百万 token）
+下一步：lax model ls
+```
+
+给 `--account` 时第一行的范围改成 `账号 ds（deepseek）的覆盖价`。
+
+`--json` 字段：
+
+| 字段 | 内容 |
+| --- | --- |
+| `model` | 模型名 |
+| `provider` | 这份价格对着的供应商；账号级时是该账号的供应商 |
+| `account` | 账号名；供应商级时是空串 |
+| `price_in`、`price_out`、`price_cache_read`、`price_cache_write` | 这次写进去的项，没给的为 `null` |
+
+这里的四项回答的是「改了什么」；「合并之后是多少」看 `price ls`。
+
+## price unset
+
+```bash
+lax model price unset <模型> [--provider <供应商>] [--account <账号>] <字段> [<字段>...]
+```
+
+字段是模型名之后的位置参数，不带 `--` 前缀，可用的是 `in`、`out`、`cache-read`、`cache-write`，一次可给多个。
+
+| 情况 | 结果 |
+| --- | --- |
+| 字段名写成 `--in` 这种参数写法 | 用法错误，列出四个可用字段 |
+| 一个字段都没给 | 用法错误，退出码 2 |
+| 某个字段本来就没有价 | 不报错，输出说明「本来就没有」，退出码仍是 0 |
+
+清掉的含义按层级不同：账号覆盖价清掉后回到供应商级标价；供应商级标价清掉后这一项未知。两者都不是「免费」。
+
+```bash
+lax model price unset deepseek-v4-pro --account ds out
+lax model price unset deepseek-v4-pro in cache-write
+```
+
+人读输出逐项确认，最后一行是剩余项数：
+
+```text
+deepseek-v4-pro已清掉输出价
+账号 ds 在 deepseek-v4-pro 上现有 2 项覆盖价，其余按厂商级标价
+```
+
+供应商级时末行改成命令输出原文 `厂商 deepseek 的 deepseek-v4-pro 现有 2 项标价，其余项未知`。
+
+`--json` 字段：
+
+| 字段 | 内容 |
+| --- | --- |
+| `model`、`provider`、`account` | 与 `price set` 同义 |
+| `cleared` | 这次真清掉的字段名数组 |
+| `unchanged` | 本来就没有的字段名数组 |
+| `remaining` | 清完之后这一行还剩几项价 |
+
+## price ls
+
+```bash
+lax model price ls
+lax model price ls deepseek-v4-pro
+lax model price ls --provider deepseek
+lax model price ls deepseek-v4-pro --account ds
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `<模型>` | 位置参数，给定时只看这一个；不给时列出目录里所有有价格的模型 |
+| `--provider` | 只看这家供应商的目录；名称不在供应商表里时报错 |
+| `--account` | 并排显示这个账号覆盖后的有效价；账号不存在时报错并给出下一步 |
+
+人读输出五列：
+
+| 列 | 内容 |
+| --- | --- |
+| 模型 | 模型名 |
+| 供应商 | 这个目录行属于哪家 |
+| 输入价、输出价 | 目录里的供应商级标价；没定价写 `-` |
+| 缓存读 / 缓存写 | 两项都没定价时写 `回退输入价`（实际就是这么算的），只空一项时那一项写 `-` |
+
+给 `--account` 时后三列的表头变成带 `（目录 | 有效）`，每格并排两段，如 `2.00 | 1.00`；有效价就是该账号实际计价用的值，与 `usage` 同源。
+
+一项价格都没有时输出一句提示：先把模型写进目录，再运行 `model price set`。
+
+`--json` 输出数组，每项字段：
+
+| 字段 | 内容 |
+| --- | --- |
+| `model`、`provider` | 模型名与供应商名 |
+| `price_in`、`price_out`、`price_cache_read`、`price_cache_write` | 目录里的供应商级标价，未定价为 `null` |
+| `effective` | 只在给了 `--account` 时出现，内含同四项，是覆盖之后的合并值 |
+
+## alias set
+
+```bash
+lax model alias set <别名> <目标>
+```
+
+`set` 是覆盖语义：同名再写一次就是改目标。别名与目标都是位置参数，不能为空。
+
+| 情况 | 结果 |
+| --- | --- |
+| 别名与真实模型名相同 | 拒绝，避免遮蔽真名 |
+| 别名等于目标 | 拒绝 |
+| 别名链成环或超过 8 跳 | 写入后解析报错，文案列出链上的名字并给出查看与撤销命令 |
+| 目标眼下没有账号提供 | 允许写入，之后加账号即生效；解析不了时不参与选号 |
+
+```bash
+lax model alias set fast glm-4.6
+lax model alias set cheap fast    # 别名指向别名，链最长 8 跳
+```
+
+人读输出 `已设置别名 fast → glm-4.6` 与下一步提示。`--json` 字段：`alias`、`target`、`resolved`（解析到的真实模型名）、`ok`（这条链现在能不能走通）。
+
+## alias unset
+
+```bash
+lax model alias unset <别名>
+```
+
+一次删一条，别名要写全。删不到时报错，并列出现有别名；一条都没有时给出 `set` 的示例。
+
+`--json` 字段：`alias`、`removed`（`true`）、`remaining`（剩余条数）。
+
+## alias ls
+
+```bash
+lax model alias ls
+lax model alias ls fast
+```
+
+不给别名时列出全部（按别名升序），给了就只列这一条；别名不存在时报错，不合成空表。
+
+人读输出四列：
+
+| 列 | 内容 |
+| --- | --- |
+| 别名 | 客户端请求用的名字 |
+| 目标 | 直接指向的名字 |
+| 状态 | `可解析` 或 `不可解析` |
+| 解析 | 可解析时是真实模型名；不可解析时是原因，含是哪几条串在一起 |
+
+`--json` 输出数组，每项字段与 `alias set` 相同。没有任何别名时输出一句提示。

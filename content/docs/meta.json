@@ -1,0 +1,22 @@
+{
+  "title": "文档",
+  "pages": [
+    "index",
+    "---开始使用---",
+    "install",
+    "quickstart",
+    "---配置---",
+    "providers",
+    "accounts",
+    "models",
+    "---使用---",
+    "gateway",
+    "clients",
+    "usage",
+    "---参考---",
+    "cli",
+    "glossary",
+    "faq",
+    "agents"
+  ]
+}

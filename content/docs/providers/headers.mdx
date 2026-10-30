@@ -1,0 +1,40 @@
+---
+title: 附加请求头
+description: 上游额外要求的请求头：值写法、作用范围与覆盖顺序
+---
+
+附加请求头指除凭据头之外，上游额外要求带的头。有些上游不加这些头就不肯路由。例如 opencode 的 Go 端点要求每个对话一个稳定的会话 ID，Azure 一类要求 `api-version`。这类头按供应商声明即可，不需要改代码：
+
+```bash
+lax provider header set opencode x-opencode-session '{session}' --protocol openai
+lax provider header set azure api-version 2024-10-21
+lax provider header ls opencode
+lax provider header unset azure api-version
+```
+
+子命令的参数与输出列见[供应商命令](/docs/cli/provider#header-set)。值有四种写法：
+
+| 写法 | 含义 |
+| --- | --- |
+| 字面量 | 原样发送，适合 `api-version` 这类固定值 |
+| `{env:NAME}` | 取当前进程的环境变量，适合会话 token 与自定义鉴权头：密钥留在环境里，不落库 |
+| `{session}` | 本次请求的会话键，取值规则见[会话粘性](/docs/accounts/failover#会话粘性)；没有会话键时每次请求现生成一个 UUID |
+| `{model}` | 本次请求的模型名（裸名，不转义） |
+
+作用范围与覆盖顺序：
+
+| 项 | 行为 |
+| --- | --- |
+| 不带 `--protocol` | 对这家供应商的每条路由生效 |
+| 带 `--protocol` | 只对该协议生效（取值 `anthropic`、`openai`、`responses`、`gemini`、`systemone`），同名时覆盖供应商级 |
+| 无值可发 | 跳过该头并记日志：环境变量未设置、环境变量为空、展开结果为空、值里有换行 |
+| 与默认凭据头同名 | 声明优先，可用来覆盖 `Authorization` 的写法 |
+
+附加头的边界：
+
+- 只发往上游，不影响 `/v1/models` 这类只读接口。
+- 不写入请求记录，日志里只出头名与不发送的原因。
+- `provider header ls` 与 `--json` 输出里的值一律脱敏，只显示前几位。
+- 声明同时用于转发、`model sync` 的清单请求、`account test` 的两段与 `model probe` 的单模型请求。
+
+按请求内容计算签名的上游接不进来：附加头只能表达固定值、环境变量、会话键与模型名四种取值，算不了的签名不在声明范围内。

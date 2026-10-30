@@ -1,0 +1,150 @@
+---
+title: 直通与转换
+description: 同协议直通、跨协议转换的字段边界、能力差异、思考深度与工具约束
+---
+
+同一个客户端请求，选中的账号出站协议不同，上游收到的报文也不同。下面两个例子只差一件事：账号的出站协议。
+
+## 直通与转换
+
+入站与出站协议相同时走**直通**：请求体除 `model` 外原样带到上游，响应按字节返回。
+
+两者不同时走**统一表示**转换。两边报文各自先翻成一套与供应商无关的中间结构，再编成目标协议的形状。
+
+转换只搬[映射表里定义过的字段](#跨协议转换只搬映射表里的字段)。前四条协议之间的十六种组合均可用，流式与非流式都支持，工具调用包含在内。
+
+systemone 不参与这套转换：它只与自己互通，规则见[与对话协议不互通](/docs/gateway/decision#与对话协议不互通)。
+
+## 同协议直通：原样带到上游
+
+客户端请求 `POST /v1/messages`（anthropic），账号出站协议也是 anthropic。客户端发出的报文里，`top_k` 与 `metadata` 是网关并不认识的字段：
+
+```json
+{
+  "model": "claude-sonnet-4-5",
+  "max_tokens": 256,
+  "top_k": 20,                                  // [!code highlight]
+  "metadata": { "user_id": "u-42" },            // [!code highlight]
+  "messages": [{ "role": "user", "content": "6 乘 7 是多少" }]
+}
+```
+
+上游收到的报文与上面**逐字节相同**，这两个陌生字段一样带过去，只有 `model` 会被换成选中账号的模型名（与客户端填的一致时看不出差别）。响应同样按字节返回，上游多给的字段不会被删。gemini 的报文不含 `model` 字段，直通时一个字节都不改。
+
+## 跨协议转换：只搬映射表里的字段
+
+同一份报文，账号出站协议换成 openai-chat。下面把客户端原文与上游实际收到的报文叠在一起看：
+
+```json
+{
+  "model": "claude-sonnet-4-5",                 // [!code --]
+  "model": "deepseek-v4-pro",                   // [!code ++]
+  "max_tokens": 256,
+  "top_k": 20,                                  // [!code --]
+  "metadata": { "user_id": "u-42" },            // [!code --]
+  "messages": [
+    { "role": "user", "content": "6 乘 7 是多少" },
+    { "role": "assistant", "content": [         // [!code --]
+      { "type": "thinking", "thinking": "用户问乘法，先算 6×7=42。", "signature": "sig-abc" },  // [!code --]
+      { "type": "text", "text": "42" }          // [!code --]
+    ]},                                         // [!code --]
+    { "role": "assistant", "content": "42" },   // [!code ++]
+    { "role": "user", "content": "那 8 乘 9 呢" }
+  ]
+}
+```
+
+红色是转换后消失的部分，绿色是上游实际收到的替换内容。上例只发生了四件事：
+
+- `model` 换成账号实际使用的模型名；
+- `top_k`、`metadata` 不在映射表里，丢弃；
+- 带签名的 `thinking` 块无处安放，丢弃；
+- `content` 块数组压成字符串。
+
+两条路径的差异：
+
+| 客户端发出 | 同协议直通 | 跨协议转换 |
+| --- | --- | --- |
+| 网关不认识的字段（`top_k`、`metadata`） | 保留 | 丢弃 |
+| `content` 块数组 | 保留 | 按目标协议重新组织 |
+| 思考块（anthropic 带签名） | 保留 | 见下一节 |
+| `model` | 换成账号的模型名 | 同左 |
+| 响应 | 字节原样 | 按映射表重建 |
+
+## 跨协议的能力差异
+
+跨协议转换会丢弃部分仅单边协议具备的语义，接入前需了解以下行为：
+
+- 思考内容仅在响应方向搬运。请求方向不会将 `reasoning_content`、`reasoning` 回填至上游，回填会导致推理模型以 400 拒绝整条请求。
+- 签名仅 anthropic 具备落点。无签名的思考块不会写入 anthropic 的请求与响应，也不生成伪签名。
+- 工具结果后紧跟的追问会合并进同一条 `user` 消息，因为 anthropic 不接受两条相邻的 user 消息。
+- 服务端内置工具（anthropic 的 `web_search` 等、gemini 的 `googleSearch` 等）跨协议时整条丢弃；跨协议的工具定义仅支持 function 类型。
+- 多模态内容仅搬运图片地址，其它文件类型丢弃。
+- `redacted_thinking` 的不透明数据与 responses 的 `encrypted_content` 不跨协议搬运。
+- 思考深度（请求侧「要不要想、想多深」的参数）与工具约束（`tools[].strict` 与工具白名单）的跨协议规则见下两节。
+- 流式转换中连接中断在工具参数中间时，已下发的片段无法撤回。收尾错误帧会说明「工具调用参数在上游中断，内容不完整」，该次请求记为失败，不会伪造闭合的 JSON。
+
+### 例：工具结果合并进同一条 user 消息
+
+chat 客户端把两次工具结果分两条消息回填，这两条要送给 anthropic 上游。客户端发出：
+
+```json
+[
+  { "role": "assistant", "content": null, "tool_calls": [
+    { "id": "call_1", "type": "function", "function": { "name": "weather", "arguments": "{\"city\":\"北京\"}" } },
+    { "id": "call_2", "type": "function", "function": { "name": "weather", "arguments": "{\"city\":\"上海\"}" } }
+  ]},
+  { "role": "tool", "tool_call_id": "call_1", "content": "晴" },   // [!code --]
+  { "role": "tool", "tool_call_id": "call_2", "content": "雨" }    // [!code --]
+]
+```
+
+anthropic 上游收到的是 **一条** user 消息：两条 `tool` 消息被折进同一个 `content` 数组（下面标绿的部分）。如果原样送两条相邻的 user 消息，上游会以 400 拒绝。
+
+```json
+[
+  { "role": "assistant", "content": [
+    { "type": "tool_use", "id": "call_1", "name": "weather", "input": { "city": "北京" } },
+    { "type": "tool_use", "id": "call_2", "name": "weather", "input": { "city": "上海" } }
+  ]},
+  { "role": "user", "content": [                                       // [!code ++]
+    { "type": "tool_result", "tool_use_id": "call_1", "content": "晴" },  // [!code ++]
+    { "type": "tool_result", "tool_use_id": "call_2", "content": "雨" },  // [!code ++]
+  ] }                                                                  // [!code ++]
+]
+```
+
+思考块同理。anthropic 响应里带回的 `thinking` 块带 `signature`，回填给 anthropic 时原样保留；转给 chat 时既没有对应字段、也不能伪签名，因此整块丢弃。
+
+同协议直通不受上述限制影响。
+
+## 思考深度
+
+请求侧「要不要想、想多深」的参数在四种协议里名字不同，跨协议时会换算：
+
+| 协议 | 字段 |
+| --- | --- |
+| anthropic | `thinking{type,budget_tokens}` |
+| openai-chat | `reasoning_effort: minimal\|low\|medium\|high` |
+| openai-responses | `reasoning.effort` |
+| gemini | `generationConfig.thinkingConfig.thinkingBudget` |
+
+换算规则：
+
+| 方向 | 值 |
+| --- | --- |
+| 预算 → 档位 | ≥ 8192 `high`，≥ 2048 `medium`，其余 `low` |
+| 档位 → 预算 | `minimal` 1024、`low` 2048、`medium` 4096、`high` 8192 |
+| 关闭思考 | anthropic 写 `thinking{type:"disabled"}`，gemini 写 `thinkingBudget:0`，两条 openai 协议不写该字段（没有「不思考」档位） |
+
+只在客户端显式给了这类字段时才写出去：上游对不认识的参数会直接 400，不凭默认值添加。预算与档位之间换算有损，同一层意思换回去可能与原值不等。同协议直通时字段原样不动。
+
+## 工具约束
+
+客户端对「能不能用工具、只能用哪些」的限制有几种写法，跨协议时按字段分别处理：
+
+| 字段 | 行为 |
+| --- | --- |
+| `tools[].strict` | 两条 openai 协议之间保留；编到 anthropic 与 gemini 时丢弃（两者没有对应字段） |
+| `tool_choice` 白名单（`allowed_tools`） | anthropic ↔ responses 互转并保留名单；到 chat 降级为 `auto`；到 gemini 用 `mode=ANY` 加 `allowedFunctionNames` |
+| 白名单只搬名字 | 不搬工具定义，不替客户端从 `tools` 里挑子集 |

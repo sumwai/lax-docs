@@ -1,0 +1,61 @@
+---
+title: 错误响应
+description: 网关状态码、四种入站协议的错误体形状与流式中断的收尾帧
+---
+
+## 错误响应
+
+网关自身给出的状态码与触发条件：
+
+| 状态码 | 触发条件 |
+| --- | --- |
+| 404 | 未知路径 |
+| 400 | 请求体解析失败、协议不相通、带 `"stream": true` 的决策请求 |
+| 405 | 方法不匹配，响应带 `Allow` 头 |
+| 413 | 决策请求体超过 8 MiB |
+| 503 | 候选账号全部失败（上游报错、都在冷却、都被停用），响应带最后一次上游错误的摘要 |
+
+错误体按入站协议给出对应结构：
+
+| 入站协议 | 错误体 |
+| --- | --- |
+| anthropic | `{"type":"error","error":{"type":…,"message":…}}` |
+| openai-chat、openai-responses | `{"error":{"message":…,"type":…,"param":null,"code":null}}` |
+| gemini | `{"error":{"code":<HTTP 状态码>,"message":…,"status":…}}` |
+| systemone | `{"detail":{"error_type":…,"message":…}}` |
+
+`/v1/models`、`/v1/models/{id}`、`/healthz`、405 与未知路径没有按入站协议成形，统一用 anthropic 那种顶层带 `type` 的形状。
+
+gemini 的 `status` 取值：
+
+| HTTP | `status` |
+| --- | --- |
+| 400 | `INVALID_ARGUMENT` |
+| 401 | `UNAUTHENTICATED` |
+| 403 | `PERMISSION_DENIED` |
+| 404 | `NOT_FOUND` |
+| 429 | `RESOURCE_EXHAUSTED` |
+| 500 | `INTERNAL` |
+| 503 | `UNAVAILABLE` |
+
+systemone 的 `error_type` 取值：
+
+| `error_type` | 出现场合 |
+| --- | --- |
+| `invalid_request_error` | 请求体不合法（缺 `model`、`questions` 为空、带 `"stream": true`）、协议不相通、上游按 400 或 422 拒绝 |
+| `authentication_error` | 凭据被上游拒绝 |
+| `permission_error` | 账号无权使用该模型 |
+| `not_found_error` | 没有账号提供这个模型，或上游回 404 |
+| `rate_limit_error` | 上游限流 |
+| `api_error` | 上游其它错误，以及候选账号全部失败 |
+
+上游自己的校验错误（422，`detail` 是数组）原样透传：状态码与正文都不重新包装，网关只是不把数组转成对象。
+
+流式请求中断时，已发出的字节不改写，只在末尾补该协议的错误帧与合法结尾：
+
+| 入站协议 | 追加内容 |
+| --- | --- |
+| anthropic | `event: error` 加 `message_delta`、`message_stop` |
+| openai-chat | 一帧 `data: {"error":…}` 加 `[DONE]` |
+| openai-responses | `error` 与 `response.failed` |
+| gemini | 一帧 `data: {"error":…}` 加带 `finishReason` 的帧 |

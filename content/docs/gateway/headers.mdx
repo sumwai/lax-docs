@@ -1,0 +1,37 @@
+---
+title: 请求头
+description: 客户端头透传名单、凭据头生成规则与附加请求头的叠加顺序
+---
+
+上游请求头由网关构造，不整体转发入站头。照抄入站头会把客户端自己的凭据送到上游，也会把逐跳头拼坏。
+
+特性开关类头必须透传，否则客户端只看到「特性没生效」而无任何错误。
+
+三类头按顺序叠加，同名时后一层覆盖前一层。以 anthropic 出站、客户端带了版本与 beta 头、供应商又声明了会话头为例：
+
+```bash
+# 上游实际发出的请求头
+x-api-key: sk-账号凭据                         # [!code highlight]
+anthropic-version: 2023-06-01                 # [!code --]
+anthropic-version: 2024-11-05                 # [!code ++]
+anthropic-beta: extended-thinking-2025-05-14  # [!code ++]
+x-opencode-session: sess-7f3a                 # [!code ++]
+```
+
+三行的来源不同：
+
+- 标亮的一行由出站协议按账号凭据生成；
+- 中间两行来自客户端，只在入站与出站协议相同时透传，客户端的 `anthropic-version` 替换默认值而不是与之并存；
+- 最后一行是供应商[附加请求头](/docs/providers/headers)，即声明在供应商上、每条上游请求都要带的头（例如按会话路由的上游要求的会话头）。它覆盖写入，连客户端带来的同名头一起压掉。
+
+| 规则 | 内容 |
+| --- | --- |
+| 透传条件 | 仅当入站协议与出站协议相同 |
+| 透传名单 | anthropic：`anthropic-beta`（可多次）、`anthropic-version`；openai-chat 与 openai-responses：`openai-beta`、`openai-organization`、`openai-project`；gemini：无（特性开关在查询串与请求体里）；systemone：无（决策请求没有靠头开关的特性） |
+| 永不透传 | 凭据类（`Authorization`、`x-api-key`、`x-goog-api-key`）、`Cookie`、逐跳头（`Host`、`Connection`、`Content-Length`、`Transfer-Encoding`、`Expect`、`Upgrade`）、本网关的 `x-lax-session`（用途见[会话粘性](/docs/accounts/failover#会话粘性)） |
+| 凭据头 | anthropic 用 `x-api-key`，gemini 用 `x-goog-api-key`，openai-chat、openai-responses 与 systemone 用 `Authorization: Bearer` |
+| 凭据归属 | 客户端发来的凭据头无作用，上游收到的始终是账号的凭据 |
+| 超长处理 | 单个头值超过 8KB 时丢弃该头，日志记头名与长度 |
+| 默认值 | `anthropic-version` 未提供时仍发 `2023-06-01` |
+
+附加头的声明与删除命令见[供应商命令](/docs/cli/provider#header-set)。

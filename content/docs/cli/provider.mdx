@@ -1,0 +1,252 @@
+---
+title: 供应商命令
+description: provider 组各子命令的参数、示例、输出列与 --json 字段，含附加请求头
+---
+
+`provider` 组维护供应商行：base URL、若干条线协议路由、默认协议、模型列表路径覆盖、备注，以及附加请求头。账号只引用供应商名，地址与默认协议都从这里派生。
+
+| 子命令 | 作用 |
+| --- | --- |
+| `ls` | 列出供应商、路由、模型列表与默认协议 |
+| `add` | 新建供应商，至少声明一条协议路由 |
+| `set` | 修改传入的字段，其余字段保持不变 |
+| `unset` | 删除一条路由，或清掉模型列表覆盖、默认协议、备注 |
+| `rm` | 删除供应商与它的全部路由 |
+| `header` | 附加请求头：`set`、`unset`、`ls` |
+
+路径写法、规整规则与决策模型接入见[路径与决策模型](/docs/providers/paths)，附加头的概念与覆盖顺序见[附加请求头](/docs/providers/headers)。
+
+## ls
+
+```bash
+lax provider ls
+lax provider ls --json
+```
+
+无参数。人读输出六列：
+
+| 列 | 内容 |
+| --- | --- |
+| 名称 | 供应商名 |
+| 地址 | base URL；没有时写 `无 base_url，路由都是整条地址` |
+| 默认协议 | 显式指定或按回退顺序取到的协议；一条路由都没有时写 `-` |
+| 路由与路径 | 每条路由的协议与路径；声明了模型列表路径的跟在括号里；没有路由时写 `无路由` |
+| 模型列表 | 供应商级覆盖或从路由推导出的清单地址 |
+| 备注 | `--note` 的取值 |
+
+供应商表为空时输出一句提示，并给出一条可直接改写的 `provider add` 示例。
+
+`--json` 每项字段：
+
+| 字段 | 内容 |
+| --- | --- |
+| `name`、`base_url`、`note` | 供应商名、地址与备注 |
+| `default_protocol` | 有效默认协议；一条路由都没有时为空串 |
+| `models_path` | 供应商级模型列表覆盖；空串表示按各路由自己的配置取 |
+| `protocols` | 路由数组，每项含 `protocol`、`path`、`models_path`；没有路由时为 `[]` |
+
+## add
+
+```bash
+lax provider add <名称> [--base-url <地址>] \
+    [--anthropic <路径>] [--openai <路径>] [--responses <路径>] \
+    [--gemini <路径>] [--systemone <路径>] \
+    [--default-protocol <协议>] [--models-path <路径>] [--note <备注>]
+```
+
+| 参数 | 必填 | 说明 |
+| --- | --- | --- |
+| `<名称>` | 是 | 供应商名，位置参数 |
+| `--base-url` | 条件 | 供应商主地址。每条路由与 `--models-path` 都是整条地址时可省略；只要有一条是相对路径就必须给 |
+| `--anthropic` | 至少一条 | anthropic 协议的路由 |
+| `--openai` | 至少一条 | openai-chat 协议的路由 |
+| `--responses` | 至少一条 | openai-responses 协议的路由 |
+| `--gemini` | 至少一条 | gemini 协议的路由，支持 `{model}` 占位符 |
+| `--systemone` | 至少一条 | systemone 决策协议的路由 |
+| `--default-protocol` | 否 | 默认协议；必须落在这次声明的路由上。不给时按 `openai-chat` → `openai-responses` → `anthropic` 取第一条 |
+| `--models-path` | 否 | 供应商级模型列表路径覆盖，优先于各路由自己的 `models_path` |
+| `--note` | 否 | 备注 |
+
+路由取值支持相对路径（相对 `--base-url`）与整条地址（含 `://`，直接使用），两种写法可以混用。空值、`/`、`///` 属于用法错误；删除一项设置改用 `provider unset`。
+
+```bash
+# 相对路径，主地址统一
+lax provider add myco --base-url https://api.example.com \
+    --openai /v1/chat/completions --anthropic /anthropic/v1/messages \
+    --default-protocol openai
+
+# 几条协议分属不同域名，逐条写整条地址，省略 base-url
+lax provider add bigmodel \
+    --anthropic https://open.bigmodel.cn/api/anthropic/v1/messages \
+    --openai https://open.bigmodel.cn/api/coding/paas/v4/chat/completions \
+    --responses https://open.bigmodel.cn/api/v1/responses \
+    --models-path https://open.bigmodel.cn/api/coding/paas/v4/models
+
+# 决策协议
+lax provider add typesafe --base-url https://api.typesafe.ai \
+    --systemone /v1/systemone --models-path /v1/models --default-protocol systemone
+```
+
+会被拒绝的情况：
+
+| 情况 | 结果 |
+| --- | --- |
+| 名称已存在 | 报错，提示改用 `provider set` |
+| 一条协议路由都没声明 | 用法错误，列出五个路由参数 |
+| 路由取值为空、`/` 或 `///` | 用法错误，写入不发生 |
+| 有相对路径却没给 `--base-url` | 整次写入被拒，并指出是哪条路由少了地址 |
+| `--base-url` 只有 scheme，或 scheme 不是 http(s) | 用法错误 |
+| `--default-protocol` 不在本次声明的路由里 | 整笔拒绝，并列出这次声明了哪些协议 |
+
+人读输出两行，第一行是供应商、地址、路由数与默认协议，第二行给出加账号的下一步命令。
+
+`--json` 输出与 `provider ls` 的单项结构相同。
+
+## set
+
+```bash
+lax provider set <名称> [--base-url <地址>] \
+    [--anthropic <路径>] [--openai <路径>] [--responses <路径>] \
+    [--gemini <路径>] [--systemone <路径>] \
+    [--models-path <路径>] [--default-protocol <协议>] [--note <备注>]
+```
+
+参数与 `add` 相同，语义是「只改传入的字段」：
+
+| 给的参数 | 行为 |
+| --- | --- |
+| 协议路由参数 | 该协议已有路由时替换路径，没有时新增一条 |
+| `--base-url` | 替换主地址；传空值属于用法错误 |
+| `--models-path`、`--default-protocol`、`--note` | 替换取值；传空值属于用法错误 |
+| 一个参数都没给 | 用法错误，列出可改的字段 |
+
+```bash
+# 补充一条 responses 路由，并把默认协议换成它
+lax provider set myco --responses /v1/responses --default-protocol responses
+
+# 覆盖模型列表地址
+lax provider set myco --models-path /v1/models
+
+# 把两条路由换到别的域名
+lax provider set myco \
+    --openai https://openai.example.com/v1/chat/completions \
+    --anthropic https://claude.example.com/v1/messages
+```
+
+人读输出一行：`已修改厂商 myco：改动 2 项（responses、default-protocol），现有 3 条路由，默认协议 openai-responses`。`--json` 输出修改后的完整供应商对象。
+
+## unset
+
+```bash
+lax provider unset <名称> <字段> [<字段>...]
+```
+
+| 字段 | 清掉什么 |
+| --- | --- |
+| `anthropic` | anthropic 路由 |
+| `openai` | openai-chat 路由 |
+| `responses` | openai-responses 路由 |
+| `gemini` | gemini 路由 |
+| `systemone` | systemone 路由 |
+| `models-path` | 供应商级模型列表覆盖 |
+| `default-protocol` | 显式默认协议，回到回退顺序 |
+| `note` | 备注 |
+
+规则：
+
+- 字段名不带 `--` 前缀，大小写要一致；未知字段当场报错并列出可用字段。
+- 目标项本来就不存在时不报错，输出说明这次什么都没动，因此命令可以重复执行。
+- `base-url` 不能 unset：清掉之后相对路径的路由拼不出完整地址，改地址用 `provider set`。
+- 供应商名不能 unset：它是主键，不再需要这家供应商就 `provider rm`。
+- 删到一条路由都不剩，或删掉的正好是默认协议那条时，整笔写入被拒；先换成另一条已声明的协议，或显式 unset `default-protocol`。
+
+```bash
+lax provider unset myco anthropic
+lax provider unset myco systemone models-path
+lax provider unset myco default-protocol
+```
+
+人读输出每个字段一行，最后一行给出剩余路由数与默认协议。`--json` 输出修改后的完整供应商对象。
+
+## rm
+
+```bash
+lax provider rm <名称> [--force]
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `--force` | 仍有账号在用这家供应商时也删除 |
+
+没有账号使用时，删除供应商与它的全部路由。仍有账号使用时默认报错，并列出这些账号；加 `--force` 后同一个事务里删除供应商并停用这些账号，因为它们已经没有地址与路由可用。
+
+`--force` 之后这些账号需要重建供应商或改到别的供应商，再 `account enable` 才能恢复。
+
+人读输出删除结果；被停用的账号会单独列出。`--json` 字段：`removed`、`routes`（删掉的路由数）、`accounts`（被停用的账号名数组）。
+
+## header set
+
+```bash
+lax provider header set <厂商> <头名> <值> [--protocol <协议>]
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `<厂商>` | 已登记的供应商名 |
+| `<头名>` | HTTP 头名，按不区分大小写处理，落库归一成小写 |
+| `<值>` | 头的值，支持四种写法 |
+| `--protocol` | 只加给这条协议：`anthropic`、`openai`、`responses`、`gemini`、`systemone`；不给就是厂商级，这家厂商的每条路由都带上它 |
+
+值的写法：
+
+| 写法 | 含义 |
+| --- | --- |
+| 字面量 | 原样发送，适合 `api-version` 这类固定值 |
+| `{env:NAME}` | 取当前进程的环境变量，适合会话 token 与自定义鉴权头 |
+| `{session}` | 本次请求的会话键；没有会话键时每次请求现生成一个 UUID |
+| `{model}` | 本次请求的模型名，不转义 |
+
+```bash
+lax provider header set opencode x-opencode-session '{session}' --protocol openai-chat
+lax provider header set azure api-version 2024-10-21
+lax provider header set acme x-api-key '{env:ACME_GATEWAY_TOKEN}'
+```
+
+同名头两处都有时协议级覆盖厂商级；删掉协议级那行就回退到厂商级。声明可以覆盖默认凭据头。
+
+头名按 HTTP `token` 字符校验，落库归一成小写；值不能是空白串，也不能带 CR、LF 或 NUL，避免一条头被拆成两条。
+
+人读输出声明结果与掩码后的值。`--json` 字段：`provider`、`protocol`（厂商级为空串）、`name`、`value`（掩码，只露前四位）、`value_masked`（恒为 `true`）。
+
+## header unset
+
+```bash
+lax provider header unset <厂商> <头名> [--protocol <协议>]
+```
+
+`--protocol` 指定删哪一条；省略时删厂商级那条。
+
+| 情况 | 结果 |
+| --- | --- |
+| 目标不存在 | 报错，列出现有声明与声明命令 |
+| 删掉协议级，同名的厂商级还在 | 成功，并提示转发会改用厂商级那条 |
+| 厂商不在表里 | 报错，提示用 `provider ls` 查看已有厂商 |
+
+人读输出删除结果与剩余条数。`--json` 字段：`provider`、`protocol`、`name`、`removed`（`true`）、`remaining`（剩余条数）。
+
+## header ls
+
+```bash
+lax provider header ls [<厂商>]
+```
+
+不给厂商时列出全部供应商的声明，给厂商时只列这一家；厂商不在表里时报错，不合成空表。人读输出四列：
+
+| 列 | 内容 |
+| --- | --- |
+| 厂商 | 供应商名 |
+| 协议 | 厂商级写 `-`，协议级写协议名 |
+| 头名 | 归一成小写后的头名 |
+| 值（脱敏） | 只露前四位 |
+
+`--json` 输出数组，每项字段与 `header set` 相同。值可能是密钥，两种输出都不打印完整值。
