@@ -1,0 +1,63 @@
+---
+title: 向量化
+description: /v1/embeddings 与 gemini 的 :embedContent 入站、同协议直通、路由声明与用量口径
+---
+
+向量化请求没有对话消息：输入一段文本或一组文本，返回一组向量，没有角色、没有工具、没有流式。这类请求与对话协议互不相通，网关只做同协议直通，不经统一表示转换。
+
+## 两条入站路径
+
+| 入站路径 | 报文 | 出站要求 |
+| --- | --- | --- |
+| `POST /v1/embeddings` | OpenAI 的向量化请求体（`model`、`input`、`encoding_format`、`dimensions` 等） | 供应商声明了 `openai-embeddings` 路由 |
+| `POST /v1beta/models/{model}:embedContent` | Gemini 的向量化请求体（`content`、`taskType`、`outputDimensionality` 等） | 供应商声明了 `gemini` 路由 |
+
+两条路径都只接受 POST，其它方法返回 405 并带 `Allow: POST`。
+
+## 声明路由
+
+向量化端点是否可用由供应商决定，不由模型决定，因此在供应商上声明一条路由：
+
+```bash
+lax provider set openai openai-embeddings=/v1/embeddings
+```
+
+`openai` 与 `ollama` 两家在初始化的迁移里已经带上这条路由。其余供应商以它的文档为准，命令与 `--anthropic`、`--openai` 那几个 flag 同一套写法（相对路径或整条地址）。
+
+供应商没有声明这条路由时，`POST /v1/embeddings` 返回 400 并给出上面那条声明命令，不会去猜一个地址。
+
+gemini 的 `:embedContent` 用 gemini 协议本身：路由里存的是对话动作（`:generateContent`），网关发请求前把动作后缀换成 `:embedContent`，所以内置的 `google-gemini` 供应商不需要额外配置。
+
+## 转发与用量
+
+| 项 | 行为 |
+| --- | --- |
+| 请求体 | `/v1/embeddings` 只把 `model` 换成解析别名后的真实名字，其余字段原样；gemini 的请求体一个字节都不改（模型名在路径上） |
+| 校验 | `model` 必须是非空字符串、`input` 必须存在；其余字段交给上游 |
+| 响应 | 按字节原样返回，不改写 `model` |
+| 用量 | OpenAI 的 `usage.prompt_tokens` 记进请求记录，输出与思考记 0；gemini 的 `:embedContent` 响应不带用量字段，这一次记 0/0 |
+| 流式 | 不支持。请求体带 `"stream": true` 时返回 400，去掉该字段再发 |
+
+向量化的输出不计费，响应里也没有条数字段，因此估算花费一律为 0。价格表按每百万 token 计，`usage` 里仍能看到输入的 token 数。
+
+## 模型清单与探活
+
+模型清单不再丢弃只能做向量化的条目：gemini 的 `supportedGenerationMethods` 里出现 `embedContent`、或供应商清单的 `supported_endpoints` 里出现 `/embeddings` 时，条目进目录并记上 `embedding` 能力位（对话模型记 `chat`）。
+
+因此 `lax model ls` 会列出这类模型，`/v1/models` 也会列出来。对它们发对话请求不会在网关这一层被拦，上游会自己用 400 说明这个模型不是对话模型；想让客户端看不到它们，用 [`model alias`](/docs/models/alias) 与客户端自己的模型名清单控制。
+
+`model probe` 对这类模型的处理：
+
+| 情况 | 探活请求 |
+| --- | --- |
+| 供应商声明了 `openai-embeddings` 路由 | 对话那条先试，拿不到 2xx 时再发一条最小向量化请求（`{"model":…,"input":"lax probe"}`），成功即记 `openai-embeddings` |
+| gemini 模型的能力位只有 `embedding` | 直接打 `:embedContent`，不发对话请求 |
+| 能力位未知、供应商也没声明向量化路由 | 与升级前一致，只按对话探活；上游回 400（例如「这不是对话模型」）时这一次探活记为失败 |
+
+## 与其他协议的关系
+
+| 关系 | 结果 |
+| --- | --- |
+| 向量化与对话四条协议 | 不相通，不做转换：向量化报文没有消息序列，对话报文没有向量 |
+| 与 `systemone` | 同样不相通，两条都只做同协议直通 |
+| 入站错误体 | `/v1/embeddings` 用 OpenAI 形状（`error.message`、`error.type`），`:embedContent` 用 gemini 形状（`error.code`、`error.status`），见[错误响应](/docs/gateway/errors) |

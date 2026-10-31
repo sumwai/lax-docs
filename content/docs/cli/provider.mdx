@@ -50,7 +50,7 @@ lax provider ls --json
 ```bash
 lax provider add <名称> [--base-url <地址>] \
     [--anthropic <路径>] [--openai <路径>] [--responses <路径>] \
-    [--gemini <路径>] [--systemone <路径>] \
+    [--gemini <路径>] [--systemone <路径>] [--embeddings <路径>] \
     [--default-protocol <协议>] [--models-path <路径>] [--note <备注>]
 ```
 
@@ -63,6 +63,7 @@ lax provider add <名称> [--base-url <地址>] \
 | `--responses` | 至少一条 | openai-responses 协议的路由 |
 | `--gemini` | 至少一条 | gemini 协议的路由，支持 `{model}` 占位符 |
 | `--systemone` | 至少一条 | systemone 决策协议的路由 |
+| `--embeddings` | 至少一条 | openai-embeddings 向量化协议的路由，例如 `/v1/embeddings`（见[向量化](/docs/gateway/embeddings#声明路由)） |
 | `--default-protocol` | 否 | 默认协议；必须落在这次声明的路由上。不给时按 `openai-chat` → `openai-responses` → `anthropic` 取第一条 |
 | `--models-path` | 否 | 供应商级模型列表路径覆盖，优先于各路由自己的 `models_path` |
 | `--note` | 否 | 备注 |
@@ -107,7 +108,7 @@ lax provider add typesafe --base-url https://api.typesafe.ai \
 ```bash
 lax provider set <名称> [--base-url <地址>] \
     [--anthropic <路径>] [--openai <路径>] [--responses <路径>] \
-    [--gemini <路径>] [--systemone <路径>] \
+    [--gemini <路径>] [--systemone <路径>] [--embeddings <路径>] \
     [--models-path <路径>] [--default-protocol <协议>] [--note <备注>]
 ```
 
@@ -148,6 +149,7 @@ lax provider unset <名称> <字段> [<字段>...]
 | `responses` | openai-responses 路由 |
 | `gemini` | gemini 路由 |
 | `systemone` | systemone 路由 |
+| `openai-embeddings` | openai-embeddings 向量化路由 |
 | `models-path` | 供应商级模型列表覆盖 |
 | `default-protocol` | 显式默认协议，回到回退顺序 |
 | `note` | 备注 |

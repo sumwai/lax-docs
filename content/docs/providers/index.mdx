@@ -1,17 +1,17 @@
 ---
 title: 供应商与路由
-description: 内置供应商、自定义地址、五种协议的默认协议与模型列表地址
+description: 内置供应商、自定义地址、六种协议的默认协议与模型列表地址
 ---
 
 供应商指一家上游服务，`lax provider` 这一组命令维护它的三样东西：
 
 - base URL：本网关访问上游的主地址，相对路径的路由拼在它后面；
-- 路由：一条线协议对应的地址路径。线协议是本网关与上游之间交换请求的格式，共 `anthropic`、`openai-chat`、`openai-responses`、`gemini`、`systemone` 五种，各自对应一个 flag（`--anthropic`、`--openai`、`--responses`、`--gemini`、`--systemone`）；
+- 路由：一条线协议对应的地址路径。线协议是本网关与上游之间交换请求的格式，共 `anthropic`、`openai-chat`、`openai-responses`、`gemini`、`systemone`、`openai-embeddings` 六种，各自对应一个 flag（`--anthropic`、`--openai`、`--responses`、`--gemini`、`--systemone`、`--embeddings`）；
 - 默认协议：账号没有指定出站协议时采用的那条路由，取值规则见[默认协议的确定规则](#默认协议的确定规则)。
 
 账号挂载在供应商上，请求发往哪条路径与用哪种请求体编码，都由账号的出站协议决定。
 
-路径的两种写法、规整规则与决策模型接入见[路径与决策模型](/docs/providers/paths)；附加请求头的声明与覆盖顺序见[附加请求头](/docs/providers/headers)。每个子命令的参数表与示例见[供应商命令](/docs/cli/provider)。
+路径的两种写法、规整规则与决策模型接入见[路径与决策模型](/docs/providers/paths)；向量化路由（`openai-embeddings`）见[向量化](/docs/gateway/embeddings#声明路由)；附加请求头的声明与覆盖顺序见[附加请求头](/docs/providers/headers)。每个子命令的参数表与示例见[供应商命令](/docs/cli/provider)。
 
 ## 查看已配置供应商
 

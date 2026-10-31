@@ -41,7 +41,7 @@ lax provider set myco \
 | 情况 | 结果 |
 | --- | --- |
 | 名称已存在 | 报错并提示改用 `provider set` |
-| 一条协议路由都没声明 | 用法错误：至少给 `--anthropic`、`--openai`、`--responses`、`--gemini`、`--systemone` 之一 |
+| 一条协议路由都没声明 | 用法错误：至少给 `--anthropic`、`--openai`、`--responses`、`--gemini`、`--systemone`、`--embeddings` 之一 |
 | 路由取值为空、`/` 或 `///` | 用法错误：这条路由缺路径，写入不发生 |
 | 有相对路径却没给 `--base-url` | 整次写入被拒，并指出是哪条路由或 `--models-path` 少了地址 |
 | `--base-url` 只有 scheme，或 scheme 不是 http(s) | 用法错误 |

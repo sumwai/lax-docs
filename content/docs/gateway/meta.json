@@ -3,5 +3,5 @@
   "icon": "Network",
   "defaultOpen": true,
   "collapsible": true,
-  "pages": ["index", "decision", "conversion", "headers", "errors"]
+  "pages": ["index", "decision", "embeddings", "conversion", "headers", "errors"]
 }

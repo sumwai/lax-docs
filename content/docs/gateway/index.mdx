@@ -1,6 +1,6 @@
 ---
 title: 网关与协议
-description: 启动方式、五条入站路径、只读清单接口与协议相关的分组页面
+description: 启动方式、六条入站路径、只读清单接口与协议相关的分组页面
 ---
 
 网关只做三件事：按模型名挑一个账号、按需转换协议、记录每次请求。其余行为分组在下列页面。
@@ -8,6 +8,7 @@ description: 启动方式、五条入站路径、只读清单接口与协议相�
 | 页面 | 内容 |
 | --- | --- |
 | [决策请求](/docs/gateway/decision) | systemone 协议的请求与响应、三种问题类型、上限、与对话协议不互通 |
+| [向量化](/docs/gateway/embeddings) | `/v1/embeddings` 与 gemini 的 `:embedContent`、同协议直通、路由声明与用量口径 |
 | [直通与转换](/docs/gateway/conversion) | 同协议直通、跨协议转换的字段边界、能力差异、思考深度与工具约束 |
 | [请求头](/docs/gateway/headers) | 哪些客户端头透传、凭据头怎么生成、附加头怎么叠加 |
 | [错误响应](/docs/gateway/errors) | 网关自身状态码、四种入站协议的错误体、流式中断的收尾帧 |
@@ -21,15 +22,16 @@ lax serve --addr 127.0.0.1:9000
 
 前台运行，启动时仅统计账号与模型数量，不向上游发起请求。默认只监听回环地址。完整参数与输出见[系统命令](/docs/cli/system#serve)。
 
-## 五条入站路径
+## 六条入站路径
 
-路径决定入站协议，五条路径同时可用，单个网关可同时接入五类客户端：
+路径决定入站协议，六条路径同时可用，单个网关可同时接入多类客户端：
 
 | 入站路径 | 协议 | 常见客户端 |
 | --- | --- | --- |
 | `POST /v1/messages` | anthropic | Claude Code |
 | `POST /v1/chat/completions` | openai-chat | 通用 OpenAI SDK 客户端 |
 | `POST /v1/responses` | openai-responses | Codex |
+| `POST /v1/embeddings` | openai-embeddings（向量化，见[向量化](/docs/gateway/embeddings)） | 需要向量化的 OpenAI SDK 客户端 |
 | `POST /v1beta/models/{model}:generateContent` | gemini | Google SDK 与原生调用 |
 | `POST /v1/systemone` | systemone（决策协议，见[决策请求](/docs/gateway/decision)） | TypeSafe SDK、`lax decide` |
 
@@ -38,16 +40,16 @@ gemini 的模型名不在请求体里，而在路径上。路径解析按三条�
 | 位置 | 规则 |
 | --- | --- |
 | 模型名 | 取 `{model}` 这一段；请求体里即使带了 `model` 字段也不看 |
-| `:` 之后的后缀 | 不属于模型名，只用来区分非流式（`generateContent`）与流式（`streamGenerateContent`） |
+| `:` 之后的后缀 | 不属于模型名，只用来区分非流式（`generateContent`）、流式（`streamGenerateContent`）与向量化（`embedContent`） |
 | 含 `/` 的名称 | 按路径段转义写出，`org%2Fgemini` 解析为 `org/gemini` |
 
 `{model}` 的值参与选号：网关按这个名称挑一个账号，条件是账号声明提供该模型。候选规则见[选号依据](/docs/models#选号依据)。
 
-两条 gemini 路径均只接受 POST，其它方法返回 405 并携带 `Allow: POST`。
+两条 gemini 路径均只接受 POST，向量化的 `:embedContent` 同样只收 POST，其它方法返回 405 并携带 `Allow: POST`。
 
-出站协议由账号决定，取值范围同为这五种。留空时取供应商的[默认协议的确定规则](/docs/providers#默认协议的确定规则)。
+出站协议由账号决定，取值范围同为这六种；向量化只打供应商声明了向量化路由的那一条。留空时取供应商的[默认协议的确定规则](/docs/providers#默认协议的确定规则)。
 
-入站与出站协议相同时走直通，不同时走统一表示转换，两条路径的边界见[直通与转换](/docs/gateway/conversion)。前四条协议之间的十六种组合均可用，流式与非流式都支持，工具调用包含在内；systemone 只与自己互通。
+入站与出站协议相同时走直通，不同时走统一表示转换，两条路径的边界见[直通与转换](/docs/gateway/conversion)。前四条协议之间的十六种组合均可用，流式与非流式都支持，工具调用包含在内；systemone 与向量化只做同协议直通。
 
 ## 只读接口
 

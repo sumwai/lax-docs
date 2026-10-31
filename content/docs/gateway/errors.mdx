@@ -1,6 +1,6 @@
 ---
 title: 错误响应
-description: 网关状态码、四种入站协议的错误体形状与流式中断的收尾帧
+description: 网关状态码、各入站协议的错误体形状与流式中断的收尾帧
 ---
 
 ## 错误响应
@@ -20,7 +20,7 @@ description: 网关状态码、四种入站协议的错误体形状与流式中�
 | 入站协议 | 错误体 |
 | --- | --- |
 | anthropic | `{"type":"error","error":{"type":…,"message":…}}` |
-| openai-chat、openai-responses | `{"error":{"message":…,"type":…,"param":null,"code":null}}` |
+| openai-chat、openai-responses、openai-embeddings | `{"error":{"message":…,"type":…,"param":null,"code":null}}` |
 | gemini | `{"error":{"code":<HTTP 状态码>,"message":…,"status":…}}` |
 | systemone | `{"detail":{"error_type":…,"message":…}}` |
 

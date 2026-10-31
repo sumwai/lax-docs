@@ -25,7 +25,7 @@ lax model sync --account ds --endpoint /v1/models # 临时替换地址，仅影�
 | `{models:[…]}` | 同上；gemini 的 `{models:[{"name":"models/…"}]}` 属于这一种 |
 | 顶层数组 | 逐个取模型名 |
 
-gemini 的清单会按 `supportedGenerationMethods` 过滤掉不支持 `generateContent` 的条目。名称中的 `models/` 前缀也会去掉。
+gemini 的清单不再按 `supportedGenerationMethods` 丢弃条目：只能做向量化的模型（`embedContent`）也进清单，只是能力位记成 `embedding`（见[向量化](/docs/gateway/embeddings#模型清单与探活)）。名称中的 `models/` 前缀仍会去掉。
 
 TypeSafe 的决策模型清单是 `{"models":[{"name":"jev-latest"}]}`，属于上表第二种，`model sync` 直接可用。commandcode 的清单不列决策模型，那边的 `typesafe/jev` 只能用 [`account add --models`](/docs/accounts#添加账号) 手填，接入步骤见[接入决策模型](/docs/providers/paths#接入决策模型systemone)。
 
