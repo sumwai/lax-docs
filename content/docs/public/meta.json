@@ -1,0 +1,6 @@
+{
+  "title": "公开入口",
+  "icon": "Globe",
+  "defaultOpen": true,
+  "pages": ["!index", "quickstart", "usage", "errors", "privacy"]
+}

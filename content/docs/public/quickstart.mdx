@@ -1,0 +1,77 @@
+---
+title: 快速开始
+description: 用管理员发放的 token 查询模型并发出第一条请求
+---
+
+开始前需要两样东西：入口地址 `https://larkax.com`，以及管理员发放的 token。下面的命令把 token 放进环境变量，避免在命令历史里反复出现。
+
+## 1. 设置 token
+
+```bash
+export LARKAX_TOKEN='<token>'
+```
+
+token 是一整串由管理员提供的值，不需要加 `Bearer ` 前缀。下面的请求会自己补上。
+
+## 2. 查询可用模型
+
+```bash
+curl -s https://larkax.com/v1/models \
+  -H "Authorization: Bearer $LARKAX_TOKEN"
+```
+
+返回里的 `data[].id` 就是请求时填写的模型名。清单只列出启用账号声明可用的模型；冷却中的模型仍会出现，真正调用时可能返回 503。
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "deepseek-v4-pro",
+      "object": "model",
+      "created": 0,
+      "owned_by": "deepseek"
+    }
+  ]
+}
+```
+
+## 3. 发一条对话请求
+
+```bash
+curl -s https://larkax.com/v1/chat/completions \
+  -H "Authorization: Bearer $LARKAX_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "deepseek-v4-pro",
+    "messages": [{"role": "user", "content": "用一句话介绍 HTTP"}]
+  }'
+```
+
+把返回里的 `choices[0].message.content` 取出来就是回答。第一次请求建议用非流式，确认 token、base URL 与模型名都正确，再打开流式。
+
+## 4. 检查入口状态
+
+```bash
+curl -s https://larkax.com/healthz \
+  -H "Authorization: Bearer $LARKAX_TOKEN"
+```
+
+`healthz` 返回账号、启用账号、模型与协议计数。它只表示入口进程与数据库可读，不探测上游，也不代表某个模型现在一定能成功调用。
+
+## 常见配置对照
+
+| 客户端 | base URL | token 位置 |
+| --- | --- | --- |
+| Claude Code | `https://larkax.com` | `ANTHROPIC_AUTH_TOKEN` |
+| Codex | `https://larkax.com/v1` | 环境变量 `LARKAX_API_KEY`，由 `env_key` 指定 |
+| OpenAI SDK | `https://larkax.com/v1` | `api_key` |
+| Anthropic SDK | `https://larkax.com` | `api_key` |
+| Gemini SDK | `https://larkax.com` | `api_key` 或 `x-goog-api-key` |
+
+逐个客户端的完整配置见[客户端接入](/docs/clients)。
+
+## 下一步
+
+- 看各协议、流式和工具调用：[使用方式](/docs/public/usage)
+- 状态码与请求体上限：[错误与限制](/docs/public/errors)

@@ -2,6 +2,12 @@
   "title": "larkax 文档",
   "pages": [
     "index",
+    "---公开入口---",
+    "!public/index",
+    "public/quickstart",
+    "public/usage",
+    "public/errors",
+    "public/privacy",
     "---客户端接入---",
     "!clients/index",
     "clients/claude-code",
