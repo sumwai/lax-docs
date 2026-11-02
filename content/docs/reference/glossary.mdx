@@ -1,0 +1,58 @@
+---
+title: 术语
+description: 文档里反复出现的说法，一句话速查
+---
+
+## 对象
+
+| 术语 | 一句话 | 详见 |
+| --- | --- | --- |
+| 供应商 | 一家上游服务，包含地址、路由、默认协议与凭据头写法 | [供应商与路由](/docs/configure/providers) |
+| 账号 | 一份上游凭据，挂在某家供应商上 | [账号](/docs/configure/accounts) |
+| 路由 | 某条线协议对应的上游地址 | [供应商与路由](/docs/configure/providers) |
+| 模型目录 | 上游曾公布或手工声明的模型与元数据 | [模型管理](/docs/configure/models) |
+| 可达性 | 某个账号上的某个模型是否能用于转发 | [模型与账号](/docs/concepts/models-accounts) |
+| 别名 | 客户端写死的模型名指向真实模型名 | [模型与账号](/docs/concepts/models-accounts) |
+| 能力位 | 模型能用于哪类端点：chat、embedding、speech、transcription | [模型与账号](/docs/concepts/models-accounts) |
+
+## 协议与转发
+
+| 术语 | 一句话 | 详见 |
+| --- | --- | --- |
+| 线协议 | 客户端与上游交换请求的报文格式 | [线协议](/docs/gateway/protocols) |
+| 入站协议 | 客户端连进来时使用的协议，由路径决定 | [线协议](/docs/gateway/protocols) |
+| 出站协议 | 网关发往上游时使用的协议，由模型与供应商推导 | [线协议](/docs/gateway/protocols) |
+| 直通 | 入站与出站协议相同，报文原样转发 | [协议转换](/docs/gateway/conversion) |
+| 中间表示 | 跨协议转换时的中立结构 | [协议转换](/docs/gateway/conversion) |
+| 方言 | 某个模型在某条操作上的上游报文形状 | [方言](/docs/plugins/dialects) |
+
+## 选号与状态
+
+| 术语 | 一句话 | 详见 |
+| --- | --- | --- |
+| 选号 | 在一次请求里挑选账号的过程 | [选号](/docs/route) |
+| 候选 | 满足启用、提供该模型、未冷却的账号 | [请求生命周期](/docs/concepts/request-lifecycle) |
+| 冷却 | 账号在某个模型上失败后被暂时移出候选的时间 | [请求生命周期](/docs/concepts/request-lifecycle) |
+| 会话粘性 | 同一会话键是否固定到同一账号 | [选号策略](/docs/route/policies) |
+| 权重 | 账号在 weighted 与 softmax 里的分流比例 | [账号权重](/docs/route/weights) |
+| 平滑成功率 | 加入最小样本后的成功率，避免零样本排到最后 | [选号策略](/docs/route/policies) |
+
+## 用量
+
+| 术语 | 一句话 | 详见 |
+| --- | --- | --- |
+| 请求记录 | 每次上游尝试一行的账 | [日志](/docs/operate/logs) |
+| 用量汇总 | 按账号、模型或日期统计 token 与花费 | [用量与花费](/docs/operate/usage) |
+| 供应商级标价 | 供应商 × 模型的一份价格 | [模型定价](/docs/configure/pricing) |
+| 账号覆盖价 | 只对一个账号生效的价格 | [模型定价](/docs/configure/pricing) |
+| 未定价 | 没有价格，不同于免费 | [模型定价](/docs/configure/pricing) |
+
+## 插件
+
+| 术语 | 一句话 | 详见 |
+| --- | --- | --- |
+| 声明式插件 | 只有数据文件，不执行代码 | [插件](/docs/plugins) |
+| moejs | 进程内 JS 沙箱，承载 hook 方言 | [安全模型](/docs/plugins/security) |
+| hook 方言 | 在沙箱里编请求、解响应的方言 | [方言](/docs/plugins/dialects) |
+| 活动版本 | 当前生效的插件版本，可回滚 | [安装与升级](/docs/plugins/install) |
+

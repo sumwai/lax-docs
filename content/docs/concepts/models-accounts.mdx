@@ -1,0 +1,78 @@
+---
+title: 模型与账号
+description: 模型名、别名、账号覆盖、能力位与方言的关系
+---
+
+同一个模型名可以在多个账号上出现，同一个账号也可以提供多个模型。lax 用几层记录把这些事实拆开，避免一次同步覆盖掉人工修正。
+
+## 模型名的四个位置
+
+| 位置 | 作用 | 示例 |
+| --- | --- | --- |
+| 客户端请求里的名字 | 客户端写的模型名，可以是别名 | `fast` |
+| 解析后的真实模型名 | 选号、请求体与上游路径使用真名 | `glm-4.6` |
+| 模型目录 | 按「供应商 × 模型」保存元数据 | `bigmodel / glm-4.6` |
+| 账号可达性 | 按「账号 × 模型」保存是否能用一个账号上的这个模型 | `acct-a / glm-4.6` |
+
+## 别名
+
+别名只影响请求方向：客户端写 `fast`，网关按 `glm-4.6` 选号与转发；响应里的模型名仍是上游返回的真名，不重写。
+
+```bash
+lax model alias set fast glm-4.6
+lax model alias ls
+lax model alias unset fast
+```
+
+| 规则 | 说明 |
+| --- | --- |
+| 匹配 | 精确匹配、区分大小写，不做通配或前缀归一 |
+| 链 | 可以指向另一个别名，最长 8 跳；成环时报错并指出环上的名字 |
+| 冲突 | 别名不能与真实模型名同名，否则会遮蔽真名 |
+| 解析失败 | 目标没有账号提供时仍可先写；此时不参与选号，状态显示为不可解析 |
+| 请求记录 | `log tail` 写 `fast → glm-4.6`；`--json` 里 `model` 是别名，`model_used` 是真名 |
+
+## 能力位
+
+模型目录上的能力位描述这个模型能用于哪些端点：
+
+| 能力 | 对应入站 |
+| --- | --- |
+| `chat` | 四条对话协议 |
+| `embedding` | `/v1/embeddings` 与 gemini 的 `:embedContent` |
+| `speech` | `/v1/audio/speech` |
+| `transcription` | `/v1/audio/transcriptions` |
+
+语音端点只打同时声明了对应能力、并绑定了方言的模型。能力位与方言是两件事：能力位回答“能不能用这个端点”，方言回答“上游报文长什么样”。
+
+## 账号级覆盖
+
+账号上的模型行可以覆盖三样东西：协议、价格与权重。它们都只在当前账号生效。
+
+| 覆盖项 | 写入命令 | 未设置时 |
+| --- | --- | --- |
+| 协议 | `model probe` 发现、`model add --protocol`、`model dialect` 相关操作 | 按模型目录与供应商默认协议推导 |
+| 价格 | `model price set --account` | 回退到供应商级标价 |
+| 权重 | `route account set --model` | 回退到账号默认权重，再回退到 1 |
+
+模型同步不会改已有账号行的协议或价格。一次同步不会把探活发现的协议改回供应商默认。
+
+## 一个模型的完整事实
+
+```bash
+lax model ls glm-4.6
+lax model show glm-4.6 --account acct-a
+lax model price ls glm-4.6 --account acct-a
+lax model capability ls glm-4.6
+lax model dialect ls glm-4.6
+lax route explain glm-4.6
+```
+
+这条链路分别回答：谁提供它、这个账号上的状态如何、这个账号的价格是多少、它声明了哪些能力、它绑了哪些方言、下一次请求会按什么顺序选号。
+
+## 下一步
+
+- 模型同步、探活与手写声明：[模型管理](/docs/configure/models)
+- 单价与账号覆盖：[模型定价](/docs/configure/pricing)
+- 选号策略：[选号](/docs/route)
+

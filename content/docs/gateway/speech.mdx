@@ -1,0 +1,112 @@
+---
+title: 语音
+description: 语音合成与转写、能力位、方言与路由的配合
+---
+
+语音有两条线协议：`openai-speech`（文本转语音）与 `openai-transcriptions`（语音转文本）。它们不进对话协议的中间表示。
+
+## 三条事实要分开
+
+| 事实 | 存在哪 | 回答的问题 |
+| --- | --- | --- |
+| 能力位 | 模型目录 | 这个模型能不能用于这个端点 |
+| 方言绑定 | 模型与操作 | 这个模型的上游报文是什么形状 |
+| 供应商路由 | 供应商与协议 | 这条请求发到哪个地址 |
+
+语音端点只打同时声明了对应能力、并绑定了方言的模型。缺少任何一项都会在发上游请求之前返回 400。
+
+## 入站
+
+| 方法 | 路径 | 协议 |
+| --- | --- | --- |
+| POST | `/v1/audio/speech` | openai-speech |
+| POST | `/v1/audio/transcriptions` | openai-transcriptions |
+
+两条都只接受 POST。请求体上限 32 MiB，与对话路径一致。
+
+### 合成
+
+```bash
+curl -s http://127.0.0.1:4567/v1/audio/speech \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"doubao-seed-tts","input":"你好","voice":"zh_female_xiaohe_uranus_bigtts","response_format":"mp3"}' \
+  --output hello.mp3
+```
+
+`input` 可以是字符串或字符串数组；数组按换行拼接。`response_format` 只支持 `mp3`、`wav`、`pcm`，不做转码。
+
+本版只返回完整音频。`stream_format` 可以省略或写 `audio`；写 `sse` 会在请求发往上游之前返回 400，因为把上游音频重新包成 OpenAI 的 SSE 事件还没有实现。
+
+### 转写
+
+```bash
+curl -s http://127.0.0.1:4567/v1/audio/transcriptions \
+  -F model=doubao-seed-asr \
+  -F file=@hello.mp3 \
+  -F response_format=json
+```
+
+multipart 必须包含 `model` 与非空的 `file`。`response_format` 支持 `json`、`text` 与 `verbose_json`；`srt`、`vtt` 需要时间轴，当前返回 400。`language` 只接受 `auto`、`zh`、`en`，省略时交给上游判断。
+
+## 声明能力与方言
+
+```bash
+lax model capability add doubao-seed-tts --capability speech --dialect lax/mimo-chat-speech@1
+lax model capability add doubao-seed-asr --capability transcription --dialect lax/mimo-chat-asr@1
+lax model capability ls
+lax model dialect ls doubao-seed-tts
+```
+
+`--dialect` 写 `model_operations`：`speech` 对应 `speech.synthesize@1`，`transcription` 对应 `speech.transcribe@1`。两项能力都声明时各写一条。
+
+内置方言：
+
+| 方言 | 操作 | 上游形状 |
+| --- | --- | --- |
+| `lax/openai-speech@1` | 合成 | OpenAI 语音，原样直通 |
+| `lax/openai-transcriptions@1` | 转写 | OpenAI 转写，原样直通 |
+| `lax/mimo-chat-speech@1` | 合成 | chat 形状 |
+| `lax/mimo-chat-asr@1` | 转写 | chat 形状 |
+
+插件可以注册自己的方言，见[插件](/docs/plugins)。
+
+## 路由
+
+供应商必须声明对应的语音路由：
+
+```bash
+lax provider add speechco --base-url https://speech.example.com \
+    --speech /v1/audio/speech \
+    --transcriptions /v1/audio/transcriptions \
+    --default-protocol speech
+```
+
+内置的 `openai` 已经声明了两条 OpenAI 语音路由。
+
+## 用量
+
+语音的用量字段与对话不同：
+
+| 项 | 来源 |
+| --- | --- |
+| `tts_chars` | 合成请求的字符数 |
+| `audio_seconds` | 上游返回的音频时长；没有时不计 |
+
+价格字段用 `tts-char` 与 `audio-second`，在 `model price set` 里设置。没有单价时显示“未定价”。
+
+## 命令行
+
+```bash
+lax model speak --model doubao-seed-tts --text "你好" --voice zh_female_xiaohe_uranus_bigtts --out hello.mp3
+lax model transcribe hello.mp3 --model doubao-seed-asr --language zh --format json
+```
+
+`speak` 把音频写标准输出或 `--out` 文件；`transcribe` 原样输出上游响应体。`--json` 只用于 `speak`，且必须同时给 `--out`。
+
+## 已知边界
+
+- 只支持非流式语音；合成请求写 `stream_format=sse`、转写请求写 `stream=true` 都会返回 400。
+- 音频与消息文本之间没有转换：语音不能转成对话，对话也不能转成语音。
+- 转写的 multipart 会被重写，但音频字节不变。
+- 方言不负责选号、凭据、路由或记账；这些仍由宿主完成。
+

@@ -1,0 +1,167 @@
+---
+title: manifest
+description: lax.plugin.json 的字段、权限与校验规则
+---
+
+`lax.plugin.json` 是插件包的入口。缺少它、字段不认识或引用对不上，安装会在复制文件之前失败。
+
+## 最小示例
+
+```json
+{
+  "schema": "lax.plugin/v1",
+  "id": "com.example.echo",
+  "name": "Echo Provider",
+  "version": "1.0.0",
+  "kind": "provider",
+  "runtime": "moejs",
+  "entry": "./index.js",
+  "abi": "lax.plugin/v1",
+  "requires": ["operation:chat.complete@1", "runtime:moejs"],
+  "permissions": {
+    "network": {"mode": "none", "schemes": [], "hosts": [], "redirects": "none"},
+    "secrets": {"plugin": [], "account": ["api_key"], "mode": "host-inject"},
+    "filesystem": "none",
+    "process": "none",
+    "env": "none"
+  },
+  "providers": [
+    {
+      "id": "echo",
+      "name": "Echo",
+      "base_url": "https://api.example.com",
+      "auth": {"header": "X-Api-Key", "scheme": "raw"},
+      "routes": [
+        {"protocol": "openai-chat", "path": "/v1/chat/completions"}
+      ],
+      "catalog": "./models.json",
+      "dialects": "./dialects.json"
+    }
+  ]
+}
+```
+
+## 顶层字段
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `schema` | 是 | 固定 `lax.plugin/v1` |
+| `id` | 是 | 插件 ID，建议反向域名，如 `com.example.echo` |
+| `name` | 是 | 显示名 |
+| `version` | 是 | 插件版本；同一版本不能覆盖 |
+| `kind` | 是 | 当前只接受 `provider` |
+| `runtime` | 是 | `declarative` 或 `moejs` |
+| `entry` | `moejs` 必填 | 相对包根的 JS 入口，必须在包内 |
+| `abi` | 是 | `lax.plugin/v1` |
+| `requires` | 否 | 操作与运行时要求 |
+| `permissions` | 是 | 权限声明，见下 |
+| `options` | 否 | 配置项声明 |
+| `providers` | 是 | 带来的供应商 |
+
+未知字段直接拒绝，不做兼容忽略。
+
+## 供应商
+
+| 字段 | 说明 |
+| --- | --- |
+| `id` | 供应商 ID，落库为供应商名 |
+| `name` | 显示名 |
+| `base_url` | 默认地址 |
+| `auth` | 凭据头声明：`{"header":"X-Api-Key","scheme":"raw"}` |
+| `routes` | 每条线协议的路径 |
+| `catalog` | 模型目录文件 |
+| `dialects` | 方言声明文件 |
+
+`routes` 写了就不再按方言推导。覆盖不到方言 `upstream_wire` 的组合会在安装时报错。
+
+`auth.scheme` 取 `raw`、`bearer` 或 `bearer-semicolon`，与 `provider add --auth-scheme` 同一套规则。
+
+## 配置项
+
+`options` 声明非敏感配置：
+
+```json
+{
+  "options": {
+    "region": {"type": "string", "enum": ["cn", "us"], "default": "cn"},
+    "timeout": {"type": "number", "default": 30},
+    "verbose": {"type": "boolean", "default": false}
+  }
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `type` | `string`、`number` 或 `boolean` |
+| `enum` | 仅字符串可用；写入值必须命中 |
+| `default` | 没写过时的回退值 |
+
+secret 不走 `options`。凭据由账号命令写入，宿主注入请求头，插件读不到 key 原文。
+
+## 权限
+
+| 权限 | 允许值 | 说明 |
+| --- | --- | --- |
+| `network.mode` | 空、`none`、`host-proxy` | `host-proxy` 时 `hosts` 必填 |
+| `network.schemes` | 只允许 `https` | 不允许明文 http |
+| `network.hosts` | 精确主机或 `*.example.com` | 裸 `*` 拒绝 |
+| `network.redirects` | 空、`none`、`same-host` | 不跟随跨主机重定向 |
+| `secrets.mode` | 空、`none`、`host-inject` | 凭据由宿主注入 |
+| `filesystem` | `none` | 当前不允许文件系统访问 |
+| `process` | `none` | 当前不允许进程访问 |
+| `env` | `none` | 当前不允许读取环境变量 |
+
+声明或使用超出这些范围的权限会在安装或加载时失败。
+
+## `requires`
+
+`requires` 是字符串数组，声明插件依赖的操作与运行时，例如：
+
+```json
+["operation:speech.synthesize@1", "operation:speech.transcribe@1", "runtime:moejs"]
+```
+
+缺少依赖的操作在安装时被拒，不会等到第一次请求才失败。
+
+## 模型目录
+
+`catalog` 指向的 JSON 描述这个供应商的模型：
+
+| 字段 | 说明 |
+| --- | --- |
+| `models[].model` | 客户端请求里写的模型名 |
+| `models[].upstream_id` | 上游要的模型名，必填 |
+| `models[].operations` | 操作到方言与能力声明的绑定，至少一项 |
+| `models[].operations.<操作>.dialect` | 这条操作使用的方言 ID |
+| `models[].operations.<操作>.capabilities` | 该操作的能力声明 |
+
+能力声明只接受以下字段，值可以是布尔或 `"unknown"`；`formats` 与 `voices` 是字符串数组或 `"unknown"`：
+
+```json
+{
+  "supported": true,
+  "streaming": false,
+  "tools": "unknown",
+  "reasoning": "unknown",
+  "json_mode": "unknown",
+  "vision": "unknown",
+  "formats": ["mp3", "wav"],
+  "voices": ["voice-a"]
+}
+```
+
+`model` 与 `upstream_id` 不同时，安装会把客户端名登记为上游名的别名。模型目录不接受未知字段，也不接受 `context_length`、`max_output` 一类的目录元数据。
+
+模型目录只声明事实，不证明可用。安装后仍由 `model probe` 判定可达性。
+
+## 方言文件
+
+`dialects` 指向的 JSON 声明方言。声明式方言只承载两条语音操作；hook 方言可以承载任意操作，但必须由 `moejs` 运行时提供。
+
+## 版本规则
+
+- `version` 是插件版本，不是上游模型版本；
+- 同一版本不可变，改了包必须升版本；
+- 活动版本可以回滚；
+- `plugin update` 不覆盖旧版本行，只新增并切换指针。
+

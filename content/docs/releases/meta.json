@@ -1,0 +1,6 @@
+{
+  "title": "版本",
+  "icon": "GitBranch",
+  "defaultOpen": true,
+  "pages": ["index", "changelog"]
+}

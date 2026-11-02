@@ -1,0 +1,98 @@
+---
+title: 安装
+description: 获取单文件二进制、初始化配置与确认本机环境
+---
+
+lax 是单个 Go 二进制，不需要 cgo、Node.js 或外部数据库。SQLite 是缺省后端，数据库文件就是普通本地文件。
+
+## 两种安装方式
+
+| 方式 | 适合 | 命令 |
+| --- | --- | --- |
+| 下载发布包 | 直接使用 | 从 [GitHub Releases](https://github.com/sumwai/lax/releases) 下载对应平台包，解压后把 `lax` 放进 `PATH` |
+| 从源码构建 | 开发或修改 | `make build`，产物是仓库根目录下的 `./lax` |
+
+发布包覆盖 Linux 与 macOS 的 amd64、arm64。Windows 不在发布范围：`serve` 与 `plugin reload` 依赖 Unix 信号。
+
+同一 Release 附带 `checksums.txt`，下载后先核对：
+
+```bash
+sha256sum -c checksums.txt
+./lax version
+```
+
+`lax version` 的输出必须与发布 tag 一致。例如 tag 是 `v0.2.1`，输出应为 `lax 0.2.1`。
+
+## 从源码构建
+
+需要 Go 工具链。仓库里：
+
+```bash
+make check    # go vet + go test + go build
+make build    # 生成带版本号的 ./lax
+./lax version
+```
+
+`make build` 用 `git describe --tags --match 'v*'` 推导版本号。直接 `go build` 也能构建，但版本号是源码里的 `0.1.0-dev`。
+
+## 初始化
+
+```bash
+lax init
+```
+
+它会创建三个文件：
+
+| 路径 | 内容 |
+| --- | --- |
+| `$XDG_CONFIG_HOME/lax/config.json` | 监听地址、数据库路径与后端 |
+| `$XDG_DATA_HOME/lax/lax.db` | 账号、模型目录、选号策略、请求记录 |
+| `$XDG_DATA_HOME/lax/secret.key` | 加密上游凭据的密钥，权限 `0600` |
+
+重复执行不会覆盖已有配置。确实要重建配置时用 `lax init --force`，它只覆盖配置文件，不会清空数据库。
+
+默认路径按 XDG 约定解析。没有设置 `XDG_CONFIG_HOME` 时为 `~/.config/lax`，没有设置 `XDG_DATA_HOME` 时为 `~/.local/share/lax`。也可以用全局参数临时指定：
+
+```bash
+lax --config /path/to/config.json --db /path/to/lax.db serve
+```
+
+`--config` 与 `--db` 必须写在子命令之前。
+
+## 检查环境
+
+```bash
+lax doctor
+```
+
+自检项包括配置文件、数据目录可写、加密密钥、配置解析、默认端口与数据库。端口一项会尝试监听配置里的地址；`serve` 正在运行时这一项会显示占用，不是错误。
+
+## 配置后端
+
+缺省使用 SQLite。需要多进程共享同一份状态时，可以改用 PostgreSQL 或 MySQL：
+
+```json
+{
+  "addr": "127.0.0.1:4567",
+  "db": "/home/someone/.local/share/lax/lax.db",
+  "driver": "postgres",
+  "dsn": "postgres://user:pass@127.0.0.1:5432/lax?sslmode=disable"
+}
+```
+
+| 字段 | 说明 |
+| --- | --- |
+| `driver` | `sqlite`、`postgres` 或 `mysql` |
+| `dsn` | 非空时用它连库，此时 `db` 被忽略 |
+| `db` | SQLite 文件路径；SQLite 的连接串由程序拼接 |
+
+表结构由程序自动创建，不需要手工执行 DDL。
+
+## 加密边界
+
+凭据以 AES-256-GCM 加密后入库。它防的是备份文件、日志或误传数据库造成的泄漏，不防同一台机器上以同一用户身份运行的程序读取 `secret.key`。
+
+## 下一步
+
+初始化完成后，先加一个账号并拉一次模型清单：[快速开始](/docs/start/quickstart)。
+

@@ -1,0 +1,88 @@
+---
+title: 线协议
+description: 八条协议的请求形状、模型名位置与互通边界
+---
+
+线协议是客户端与上游交换请求的报文格式。lax 收八条，也发八条，但只有四条对话协议参与互相转换。
+
+## 协议一览
+
+| 协议 | 入站 | 出站 | 参与转换 |
+| --- | --- | --- | --- |
+| `anthropic` | `/v1/messages` | 供应商路由 | 是 |
+| `openai-chat` | `/v1/chat/completions` | 供应商路由 | 是 |
+| `openai-responses` | `/v1/responses` | 供应商路由 | 是 |
+| `gemini` | `/v1beta/models/{model}:generateContent` 与 `:streamGenerateContent` | 供应商路由 | 是 |
+| `systemone` | `/v1/systemone` | 供应商路由 | 否 |
+| `openai-embeddings` | `/v1/embeddings` | 供应商路由 | 否 |
+| `openai-speech` | `/v1/audio/speech` | 供应商路由或方言 | 否 |
+| `openai-transcriptions` | `/v1/audio/transcriptions` | 供应商路由或方言 | 否 |
+
+## 模型名在哪里
+
+| 协议 | 位置 |
+| --- | --- |
+| anthropic | 请求体顶层 `model` |
+| openai-chat | 请求体顶层 `model` |
+| openai-responses | 请求体顶层 `model` |
+| gemini | URL 路径的 `{model}` 段；请求体里的 `model` 不看 |
+| systemone | 请求体顶层 `model` |
+| openai-embeddings | 请求体顶层 `model` |
+| openai-speech | 请求体顶层 `model` |
+| openai-transcriptions | multipart 表单的 `model` 字段 |
+
+## 对话协议的共同边界
+
+四条对话协议之间可以任意转换，但中间表示只表达一组共同概念：
+
+| 概念 | 说明 |
+| --- | --- |
+| system | 顶层 system、`instructions` 或首条 system 消息 |
+| messages | 用户、助手、工具结果与对话中间的 system |
+| tools / tool_choice | 工具定义与选择方式 |
+| thinking | 请求侧思考配置与响应侧思考内容 |
+| max_tokens / temperature / top_p / stop | 采样参数 |
+| usage | 输入、输出、缓存读写与思考 token |
+
+协议各自独有的字段不会跨协议搬运。例如 gemini 的 `googleSearch` 内置工具、anthropic 的 `cache_control` 细粒度标记、responses 的 `encrypted_content` 都不会被编到另一个协议里。
+
+## 不参与转换的三类
+
+systemone、embeddings 与两条语音协议不进中间表示。原因分别是：
+
+- systemone 不是消息序列，没有对话结构可映射；
+- 向量化没有角色、工具与流式；
+- 语音是音频字节，与消息文本之间没有可定义的映射。
+
+它们只做同协议转发，或按模型绑定的方言处理。
+
+## 入站与出站不同会怎样
+
+| 情况 | 行为 |
+| --- | --- |
+| 两边相同且是宿主直通协议 | 原样转发请求体与响应体 |
+| 两边不同但都属于四条对话协议 | 经中间表示转换 |
+| 入站是 systemone，出站不是 | 400，提示改用对话路径 |
+| 入站是对话，出站是 systemone | 400，提示改用 `/v1/systemone` |
+| 入站是语音，模型能力或方言不匹配 | 400，不发送上游请求 |
+
+## 有效出站协议
+
+出站协议归属在模型上，不归属在账号名或入站路径上。同一个账号既可以服务 anthropic 请求，也可以服务 chat 请求，只要模型的有效出站协议是其中一条。
+
+推导顺序见[工作原理](/docs/concepts/how-it-works#有效协议怎么定)。
+
+## 协议名简写
+
+命令行参数接受两种写法：
+
+| 简写 | 全名 |
+| --- | --- |
+| `openai` | `openai-chat` |
+| `responses` | `openai-responses` |
+| `embeddings` | `openai-embeddings` |
+| `speech` | `openai-speech` |
+| `transcriptions` | `openai-transcriptions` |
+
+`anthropic`、`gemini`、`systemone` 两种写法相同。
+

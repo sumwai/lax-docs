@@ -1,0 +1,73 @@
+---
+title: 账号权重
+description: 账号默认权重与按模型覆盖，以及它与优先级的区别
+---
+
+权重只服务 `weighted` 与 `softmax` 两种策略。它表达的是“分流比例”，不是“启用开关”。
+
+## 两个作用域
+
+| 作用域 | 命令 | 生效范围 |
+| --- | --- | --- |
+| 账号默认 | `route account set <账号> --weight N` | 这个账号的所有模型 |
+| 模型覆盖 | `route account set <账号> --model <模型> --weight N` | 只对这个模型 |
+
+模型覆盖优先于账号默认。两者都没有时权重为 1。
+
+```bash
+lax route account set acct-a --weight 3
+lax route account set acct-a --model glm-4.6 --weight 5
+lax route account ls
+lax route account ls acct-a
+lax route account unset acct-a --model glm-4.6
+```
+
+取值是 1 到 1000 的整数。`0` 不表示停用，权重 0 是用法错误；停用账号用 `account disable`。
+
+## 来源
+
+`route account ls` 的来源列显示权重从哪来：
+
+| 来源 | 含义 |
+| --- | --- |
+| 内置 1 | 没设置过，使用默认值 |
+| 账号默认 | 设置了账号级权重 |
+| 模型覆盖 | 这个模型上有单独覆盖 |
+
+## 与 priority 的区别
+
+| 项 | priority | weight |
+| --- | --- | --- |
+| 存储 | 账号属性 | 选号策略输入 |
+| 含义 | 尝试顺序 | 分流比例 |
+| 适用策略 | `priority`、`success`、`softmax` 的评分 | `weighted`、`softmax` |
+| 典型场景 | 主备账号 | 套餐额度 3:1 |
+
+一个账号可以同时有低优先级和高权重。它们不冲突：`priority` 决定谁先被尝试，权重决定在按比例策略里占多少份额。
+
+## 权重与故障转移
+
+`weighted` 排出的是完整顺序，不是只选第一个。权重高的账号排在前面的次数更多；它失败后，后面的账号仍按权重顺序补上。
+
+`softmax` 的权重乘在 softmax 的指数项上，影响被抽中的概率，然后无放回抽样排出完整顺序。探索比例会给低权重账号保底概率。
+
+## 例子：3:1 分流
+
+```bash
+lax route set glm-4.6 --strategy weighted --sticky off
+lax route account set acct-a --model glm-4.6 --weight 3
+lax route account set acct-b --model glm-4.6 --weight 1
+lax route explain glm-4.6 --seed 42
+```
+
+在四个请求的窗口里，大致三个请求先走 `acct-a`，一个先走 `acct-b`。实际顺序可以在 `route explain` 的“概率”列看到。
+
+## 删除
+
+```bash
+lax route account unset acct-a --model glm-4.6
+lax route account unset acct-a
+```
+
+删掉模型覆盖后回落到账号默认；删掉账号默认后回到内置 1。删除不存在的权重不报错，只输出提示。
+

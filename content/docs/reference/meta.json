@@ -1,0 +1,6 @@
+{
+  "title": "参考",
+  "icon": "BookOpen",
+  "defaultOpen": true,
+  "pages": ["cli", "glossary", "faq", "agents"]
+}

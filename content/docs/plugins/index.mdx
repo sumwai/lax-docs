@@ -1,0 +1,135 @@
+---
+title: 插件
+description: 用声明式映射或 JS 沙箱接入特殊上游
+---
+
+lax 内置了常见供应商与协议形状。遇到内置方言覆盖不了的上游，用插件描述它，不必改 Go 代码或重发版本。
+
+插件可以带来：
+
+- 一家或多家供应商；
+- 这些供应商的路由与凭据头写法；
+- 模型目录与模型别名；
+- 方言，也就是上游请求与响应的形状；
+- 声明式的模型与方言绑定。
+
+## 两种运行时
+
+| 运行时 | 信任级别 | 执行方式 | 能做什么 |
+| --- | --- | --- | --- |
+| `declarative` | `declarative` | 不执行代码，宿主按 `dialects.json` 求值 | 语音两条操作；对话、向量化与决策只能引用 `lax/` 宿主方言 |
+| `moejs` | `sandboxed` | 每个 hook 在进程内 goja 沙箱执行 | 任意操作：可以编请求、解响应、解流 |
+
+安装时 `--trust` 必须与 manifest 的 `runtime` 一致：
+
+| `--trust` | `runtime` | 结果 |
+| --- | --- | --- |
+| 省略 | `declarative` | 按声明式安装 |
+| 省略 | `moejs` | 按沙箱安装 |
+| `declarative` | `declarative` | 安装 |
+| `sandboxed` | `moejs` | 安装 |
+| `declarative` | `moejs` | 用法错误：有代码的包不能按声明式装 |
+| `sandboxed` | `declarative` | 用法错误：没有代码可跑 |
+
+## 插件带来什么
+
+```text
+插件包
+  lax.plugin.json    ID、版本、运行时、权限、供应商、路由、配置项
+  dialects.json      声明式方言，或 hook 方言的声明
+  models.json        模型目录与操作绑定
+  index.js           runtime=moejs 时的入口
+```
+
+安装时，lax 会：
+
+1. 解析并严格校验 manifest、方言、模型目录与三者之间的引用；
+2. 确定信任级别；
+3. 计算包目录哈希；
+4. 拒绝同一版本重复安装；
+5. 检查方言冲突与 `lax/` 前缀冒用；
+6. 把包复制到数据目录，先落 `staging/`，再整目录改名；
+7. 逐家供应商写路由、模型、绑定与别名；
+8. 写版本行与审计。
+
+任何一步失败都会回滚已经复制的包目录；供应商目录是逐家事务，前面已经写入的供应商可能需要 `plugin rm` 或 `provider rm` 清理。
+
+## 官方插件
+
+官方插件仓库是 [sumwai/lax-plugins](https://github.com/sumwai/lax-plugins)。当前提供豆包 Seed-TTS 与 Seed-ASR。
+
+```bash
+lax plugin ls --available
+lax plugin install doubao-seed-tts --trust sandboxed --yes
+lax plugin install doubao-seed-tts@1.2.1 --trust sandboxed --yes
+```
+
+裸插件名的解析规则：
+
+| 写法 | 来源 |
+| --- | --- |
+| `doubao-seed-tts` | 当前目录有同名目录时用本地目录；否则官方仓库默认分支 |
+| `doubao-seed-tts@1.2.1` | 官方仓库 tag `doubao-seed-tts-v1.2.1` |
+| `doubao-seed-tts@main` | 官方仓库的 `main` ref |
+| `github.com/owner/repo/path@ref` | 指定 GitHub 仓库路径 |
+| `./local-dir` | 本地目录 |
+
+`@` 后的版本号只改变来源解析，后面的校验、哈希、冲突检查与安装流水线不变。
+
+## 生命周期
+
+```bash
+lax plugin install ./my-plugin --dry-run
+lax plugin install ./my-plugin
+lax plugin update com.example.echo --source ./v2 --yes
+lax plugin rollback com.example.echo --version 1.0.0
+lax plugin verify --all
+lax plugin doctor
+lax plugin ls
+lax plugin show com.example.echo
+lax plugin disable com.example.echo
+lax plugin enable com.example.echo
+lax plugin rm com.example.echo
+```
+
+| 命令 | 作用 |
+| --- | --- |
+| `install` | 安装并登记；`--dry-run` 只打印计划 |
+| `update` | 安装新版本并切换活动版本 |
+| `rollback` | 把活动版本切回已装版本 |
+| `verify` | 静态校验：包哈希、manifest 哈希、运行时与声明 |
+| `doctor` | 打开沙箱、试登记方言、检查导出钩子 |
+| `logs` | 查看插件运行日志，`--follow` 跟随 |
+| `reload` | 给运行中的 `serve` 发 `SIGHUP`，重载方言表 |
+| `config` | 读写 manifest 声明的配置项 |
+| `ls` / `show` | 查看已装插件与详情 |
+| `enable` / `disable` | 启停；网关重启后生效 |
+| `rm` | 删除库记录与供应商目录，默认保留包目录 |
+
+## 包目录
+
+```text
+<数据目录>/plugins/
+  installed/<插件 ID>/<版本>/
+  staging/
+```
+
+已安装版本不可变。改包内容必须升 manifest 里的 `version`；同一版本不能覆盖。
+
+## 热加载
+
+```bash
+lax plugin reload
+```
+
+它读数据目录下的 `lax.pid`，给 `serve` 进程发 `SIGHUP`。网关重建注册表并整表替换；在途请求继续使用换表前取到的方言，跑完为止。
+
+重载失败只打一行日志，当前注册表不改变。旧沙箱实例不会立即释放，反复 reload 会累积内存。
+
+## 下一步
+
+- 安装来源与版本固定：[安装与升级](/docs/plugins/install)
+- 方言如何描述上游：[方言](/docs/plugins/dialects)
+- manifest 字段与权限：[manifest](/docs/plugins/manifest)
+- 沙箱边界与安全：[安全模型](/docs/plugins/security)
+

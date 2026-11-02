@@ -1,0 +1,102 @@
+---
+title: 账号
+description: 添加、查看、换凭据、启停与账号级状态
+---
+
+账号是一份上游凭据，挂在某家供应商上。同一家供应商可以添加多个账号，用优先级与选号策略决定先用哪一个。
+
+## 添加
+
+```bash
+lax account add ds --provider deepseek --key sk-xxx
+lax account add ds2 --provider deepseek --key sk-yyy --priority 200
+```
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--provider` | 供应商名，必填 | — |
+| `--key` | API key；`-` 从标准输入读，留空读 `LAX_KEY` | — |
+| `--models` | 逗号分隔的模型名，写目录并标这个账号可用 | 空 |
+| `--priority` | 同模型多账号时的优先级，小的先试 | `100` |
+| `--name` | 账号名，也可以作为位置参数 | — |
+
+`--models` 是手填的初始值，不带上游长度与价格。常规路径是 `model sync` 加 `model probe`。
+
+账号名是命令里的主键，改名需要删除后重建。删除会保留历史请求记录，但会丢掉这个账号的探活结果、选号统计与权重。
+
+## 查看
+
+```bash
+lax account ls
+lax account ls --json
+```
+
+人读输出列出账号、供应商、地址、有效协议、模型数量、优先级与状态。模型列区分“可用”（探活通过）与“已登记”（同步、手填或探活留下的全部行）。
+
+空模型列表不等于支持全部模型。没有可用模型的账号不参与选号。
+
+## 换凭据
+
+不要删除账号再重建。`account set` 保留账号名、探活结果、协议发现与请求记录归属：
+
+```bash
+lax account set ds --key sk-new
+lax account set ds --key - < key.txt
+LAX_KEY=sk-new lax account set ds
+```
+
+旧凭据留下的冷却与连续失败次数在同一个事务里清零，账号重新启用。`update` 是 `set` 的同义词，帮助里只列 `set`。
+
+模型单价不在账号上，因此 `account add` 与 `account set` 不接受价格参数；改价用 `model price set`。
+
+## 测试连通性
+
+```bash
+lax account test ds
+```
+
+它分两段：
+
+1. `GET` 模型列表，证明地址与凭据头可用，不消耗 token；
+2. 列表 2xx 后再发一条 `max_tokens=1` 的请求，证明凭据真的能调用。
+
+有的上游列表接口是公开的，任何 key 都返回 200，所以只看列表判不出 key 好坏。列表接口不存在（404/405）、被拒绝（403）或连不上时，直接进入第二段。
+
+第二段用的模型取账号模型列表第一项；为空时用 `default` 并在备注里说明。两段都通过才判正常。
+
+`account test` 判定的是账号与凭据，不是某个模型。某个模型到底能不能用，由 `model probe` 决定。
+
+## 启用与停用
+
+```bash
+lax account disable ds
+lax account enable ds
+```
+
+停用后不再参与选号，也不出现在 `/v1/models` 的提供者里。`enable` 会清掉全部模型的冷却。
+
+401 会自动停用账号：凭据被拒时继续尝试只会把错误刷满候选池。`account test` 成功或 `account enable` 可以恢复。403 不停用，因为常见原因是套餐或模型权限，不是 key 失效。
+
+## 删除
+
+```bash
+lax account rm ds
+```
+
+`account rm` 不再二次确认，也不接受 `--yes`。删除账号会连带删除它的模型可达性、权重与选号统计；请求记录保留，账号列显示为 `-`。
+
+## 账号级覆盖
+
+| 事实 | 查看 | 修改 |
+| --- | --- | --- |
+| 模型可达性 | `model show <模型> --account <账号>` | `model probe`、`model add` |
+| 模型协议 | `model show` | `model probe` 发现或 `model add --protocol` |
+| 模型价格 | `model price ls <模型> --account <账号>` | `model price set --account` |
+| 账号权重 | `route account ls` | `route account set` |
+
+## 优先级与权重不同
+
+`--priority` 是账号属性，供 `priority` 策略排序，数值越小越先试。权重是选号策略的输入，只给 `weighted` 与 `softmax` 使用。改了策略不一定需要改优先级。
+
+详见[选号](/docs/route)。
+

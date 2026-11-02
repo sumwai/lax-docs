@@ -1,55 +1,53 @@
 ---
-title: 网关与协议
-description: 启动方式、六条入站路径、只读清单接口与协议相关的分组页面
+title: 网关
+description: 启动、监听、只读接口与八条入站协议
 ---
 
-网关只做三件事：按模型名挑一个账号、按需转换协议、记录每次请求。其余行为分组在下列页面。
+网关是 lax 的数据面。它按模型名选账号，按需转换协议，记录每次尝试，然后把响应交还给客户端。
 
-| 页面 | 内容 |
-| --- | --- |
-| [决策请求](/docs/gateway/decision) | systemone 协议的请求与响应、三种问题类型、上限、与对话协议不互通 |
-| [向量化](/docs/gateway/embeddings) | `/v1/embeddings` 与 gemini 的 `:embedContent`、同协议直通、路由声明与用量口径 |
-| [直通与转换](/docs/gateway/conversion) | 同协议直通、跨协议转换的字段边界、能力差异、思考深度与工具约束 |
-| [请求头](/docs/gateway/headers) | 哪些客户端头透传、凭据头怎么生成、附加头怎么叠加 |
-| [错误响应](/docs/gateway/errors) | 网关自身状态码、四种入站协议的错误体、流式中断的收尾帧 |
-
-## 启动网关
+## 启动
 
 ```bash
 lax serve
 lax serve --addr 127.0.0.1:9000
 ```
 
-前台运行，启动时仅统计账号与模型数量，不向上游发起请求。默认只监听回环地址。完整参数与输出见[系统命令](/docs/cli/system#serve)。
+默认监听 `127.0.0.1:4567`，前台运行，`Ctrl-C` 或 `SIGTERM` 退出。`--addr` 临时覆盖配置里的地址。
 
-## 六条入站路径
+启动时会：
 
-路径决定入站协议，六条路径同时可用，单个网关可同时接入多类客户端：
+- 加载插件方言表；单个插件加载失败只打警告，不阻止网关启动；
+- 回填语音能力位对应的方言绑定；
+- 清理 30 天以前的选号统计分钟桶；
+- 写 pid 文件到数据目录，供 `plugin reload` 找到进程。
 
-| 入站路径 | 协议 | 常见客户端 |
-| --- | --- | --- |
-| `POST /v1/messages` | anthropic | Claude Code |
-| `POST /v1/chat/completions` | openai-chat | 通用 OpenAI SDK 客户端 |
-| `POST /v1/responses` | openai-responses | Codex |
-| `POST /v1/embeddings` | openai-embeddings（向量化，见[向量化](/docs/gateway/embeddings)） | 需要向量化的 OpenAI SDK 客户端 |
-| `POST /v1beta/models/{model}:generateContent` | gemini | Google SDK 与原生调用 |
-| `POST /v1/systemone` | systemone（决策协议，见[决策请求](/docs/gateway/decision)） | TypeSafe SDK、`lax decide` |
+启动时不会向上游发请求。
 
-gemini 的模型名不在请求体里，而在路径上。路径解析按三条规则：
+## 监听地址
 
-| 位置 | 规则 |
-| --- | --- |
-| 模型名 | 取 `{model}` 这一段；请求体里即使带了 `model` 字段也不看 |
-| `:` 之后的后缀 | 不属于模型名，只用来区分非流式（`generateContent`）、流式（`streamGenerateContent`）与向量化（`embedContent`） |
-| 含 `/` 的名称 | 按路径段转义写出，`org%2Fgemini` 解析为 `org/gemini` |
+默认只绑回环地址。网关不校验入站凭据，因此不要直接把端口暴露到公网。需要跨机访问时：
 
-`{model}` 的值参与选号：网关按这个名称挑一个账号，条件是账号声明提供该模型。候选规则见[选号依据](/docs/models#选号依据)。
+- 放在 SSH 隧道、Tailscale 或内网之后；
+- 或在前面加一层反向代理，由代理做 TLS 与认证。
 
-两条 gemini 路径均只接受 POST，向量化的 `:embedContent` 同样只收 POST，其它方法返回 405 并携带 `Allow: POST`。
+## 八条入站协议
 
-出站协议由账号决定，取值范围同为这六种；向量化只打供应商声明了向量化路由的那一条。留空时取供应商的[默认协议的确定规则](/docs/providers#默认协议的确定规则)。
+| 方法 | 路径 | 协议 | 说明 |
+| --- | --- | --- | --- |
+| POST | `/v1/messages` | anthropic | Claude Code 等 |
+| POST | `/v1/chat/completions` | openai-chat | OpenAI SDK 与兼容客户端 |
+| POST | `/v1/responses` | openai-responses | Codex 等 |
+| POST | `/v1beta/models/{model}:generateContent` | gemini | 非流式 |
+| POST | `/v1beta/models/{model}:streamGenerateContent` | gemini | 流式 |
+| POST | `/v1/embeddings` | openai-embeddings | 向量化 |
+| POST | `/v1beta/models/{model}:embedContent` | gemini | 向量化 |
+| POST | `/v1/systemone` | systemone | 决策协议 |
+| POST | `/v1/audio/speech` | openai-speech | 语音合成 |
+| POST | `/v1/audio/transcriptions` | openai-transcriptions | 语音转写 |
 
-入站与出站协议相同时走直通，不同时走统一表示转换，两条路径的边界见[直通与转换](/docs/gateway/conversion)。前四条协议之间的十六种组合均可用，流式与非流式都支持，工具调用包含在内；systemone 与向量化只做同协议直通。
+八条入站路径只接受 POST；其它方法返回 405 并带 `Allow: POST`。未知路径返回 404。
+
+gemini 的模型名在路径里，`:` 之后的后缀只区分动作，不属于模型名。名称含 `/` 时按路径段转义，例如 `org%2Fgemini` 解析为 `org/gemini`。
 
 ## 只读接口
 
@@ -59,21 +57,59 @@ curl -s http://127.0.0.1:4567/v1/models/deepseek-v4-pro
 curl -s http://127.0.0.1:4567/healthz
 ```
 
-| 接口 | 返回 | 边界情况 |
-| --- | --- | --- |
-| `GET /v1/models` | 启用账号声明提供的模型清单，按名称去重升序，`owned_by` 为供应商名 | 一个模型都没有时仍是 200，`data` 为空数组 |
-| `GET /v1/models/{id}` | 清单里的那一个对象，形状与列表项相同；`{id}` 是模型名原文，含 `/` 的名称也能取到 | 404，`error.type` 为 `not_found_error` |
-| `GET /healthz` | 运维视角的计数：账号、启用账号、模型与进出协议，含停用账号 | — |
+| 接口 | 内容 |
+| --- | --- |
+| `GET /v1/models` | 启用账号声明可用的模型，按名称去重升序；`owned_by` 是供应商名 |
+| `GET /v1/models/{id}` | 单个模型对象；未命中返回 404 |
+| `GET /healthz` | 账号、启用账号、模型与进出协议计数 |
 
-两个清单接口只读。它们只接受 GET，其它方法返回 405 并携带 `Allow: GET`。
+`/v1/models` 的形状：
 
-调用它们不写请求记录，也不动冷却、失败计数与选号，因此可以拿返回值填客户端的模型下拉框，不会影响转发。
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "deepseek-v4-pro",
+      "object": "model",
+      "created": 0,
+      "owned_by": "deepseek"
+    }
+  ]
+}
+```
 
-冷却指账号连续失败后被暂时移出候选的一段时间，规则见[冷却与失败转移](/docs/accounts/failover#冷却与失败转移)。
+两个模型接口只读、只收 GET，不写请求记录，也不影响冷却与选号。停用账号提供的模型不出现；冷却中的模型仍出现。
 
-清单与转发对同一个名字可以给出不同结论。清单只反映「现在有账号声明提供这个名称」，转发时的 503 才表示「账号存在但当下打不通」。两种情形：
+清单里也会列出解析成功的别名。别名的 `id` 是别名，`owned_by` 取提供解析后真名的供应商。
 
-| 账号状态 | 清单 | 直接转发 |
-| --- | --- | --- |
-| 只有停用账号提供该名称 | 404 | 503 |
-| 提供者处于冷却 | 照常出现 | 若仍在冷却则计入 503 |
+## 健康检查
+
+`/healthz` 返回网关视角的计数，包含停用账号。它用于判断进程是否活着与数据库是否可读，不探测上游。
+
+## 路径与错误
+
+| 情况 | 状态码 |
+| --- | --- |
+| 未知路径 | 404 |
+| 已知路径但方法不对 | 405，带 `Allow` |
+| 请求体解析失败 | 400 |
+| 模型名不在清单 | 404 |
+| 有账号提供该模型但本次全都失败 | 503 |
+| 选号策略读取失败、数据库错误 | 500 |
+
+错误体按入站协议给形状，见[错误响应](/docs/gateway/errors)。
+
+## 协议页面
+
+| 主题 | 页面 |
+| --- | --- |
+| 入站协议细节与模型名位置 | [线协议](/docs/gateway/protocols) |
+| 直通与跨协议转换 | [协议转换](/docs/gateway/conversion) |
+| 客户端头透传与供应商附加头 | [请求头](/docs/gateway/headers) |
+| 各协议的错误形状 | [错误响应](/docs/gateway/errors) |
+| 流式行为与客户端断开 | [流式与断开](/docs/gateway/realtime) |
+| 向量化 | [向量化](/docs/gateway/embeddings) |
+| 决策请求 | [决策请求](/docs/gateway/decision) |
+| 语音合成与转写 | [语音](/docs/gateway/speech) |
+

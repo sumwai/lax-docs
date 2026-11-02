@@ -1,0 +1,177 @@
+---
+title: 供应商与路由
+description: 内置供应商、自定义地址、八条路线协议与模型列表路径
+---
+
+供应商是一家上游服务。`lax provider` 维护它的地址、每条协议的路由、默认协议、凭据头写法与模型列表覆盖。
+
+## 查看
+
+```bash
+lax provider ls
+lax provider ls --verbose
+lax provider ls --json
+```
+
+默认输出是总览：名称、来源、地址、默认协议、已声明路由与备注。`--verbose` 额外显示每条路由的完整路径与模型列表地址。
+
+来源列有三种：
+
+| 来源 | 含义 |
+| --- | --- |
+| 内置 | 首次建库时从二进制内置目录写入 |
+| 插件 | `plugin install` 登记或认领的供应商 |
+| 自建 | `provider add` 新建，或从旧库搬迁补建 |
+
+来源只用于识别，不限制修改；三种行都能 `set`、`unset` 与 `rm`。
+
+## 内置供应商
+
+初始化后自带以下记录：
+
+| 供应商 | base URL | 已声明路由 |
+| --- | --- | --- |
+| `anthropic` | `https://api.anthropic.com` | anthropic |
+| `openai` | `https://api.openai.com` | openai-chat、openai-responses、openai-embeddings、openai-speech、openai-transcriptions |
+| `deepseek` | `https://api.deepseek.com` | openai-chat、anthropic |
+| `moonshot` | `https://api.moonshot.cn` | openai-chat |
+| `kimi` | `https://api.moonshot.cn` | openai-chat |
+| `openrouter` | `https://openrouter.ai/api` | openai-chat |
+| `ollama` | `http://127.0.0.1:11434` | openai-chat、openai-embeddings |
+| `commandcode` | `https://api.commandcode.ai/provider/v1` | openai-chat、anthropic |
+| `google-gemini` | `https://generativelanguage.googleapis.com` | gemini |
+
+内置目录随二进制发布。旧数据库升级时会按 `plugin_id` 与已知名称回填来源。
+
+## 新增供应商
+
+`provider add` 只新建；名称已存在时用 `provider set`。
+
+```bash
+lax provider add myco --base-url https://api.example.com \
+    --openai /v1/chat/completions \
+    --anthropic /v1/messages \
+    --default-protocol openai
+```
+
+八条路由参数：
+
+| 参数 | 线协议 |
+| --- | --- |
+| `--anthropic` | anthropic |
+| `--openai` | openai-chat |
+| `--responses` | openai-responses |
+| `--gemini` | gemini |
+| `--systemone` | systemone |
+| `--embeddings` | openai-embeddings |
+| `--speech` | openai-speech |
+| `--transcriptions` | openai-transcriptions |
+
+路由可以是相对路径，拼在 `--base-url` 之后；也可以是整条地址，直接使用。两种写法可以混用。
+
+```bash
+lax provider add bigmodel \
+    --anthropic https://open.bigmodel.cn/api/anthropic/v1/messages \
+    --openai https://open.bigmodel.cn/api/coding/paas/v4/chat/completions \
+    --responses https://open.bigmodel.cn/api/v1/responses \
+    --models-path https://open.bigmodel.cn/api/coding/paas/v4/models
+```
+
+`--base-url` 可以省略，条件是每条路由与 `--models-path` 都是整条地址。只要有一条是相对路径，就必须给 `--base-url`，否则整次写入被拒绝。
+
+至少声明一条路由。路径的斜杠写法由程序规整：前导斜杠、重复斜杠与末尾斜杠不必纠结。`{model}` 占位符只允许出现在 gemini 路由里，替换时按路径段转义。
+
+## 修改供应商
+
+`provider set` 只写传入的字段，未传入的保持不变：
+
+```bash
+lax provider set myco --responses /v1/responses --default-protocol responses
+lax provider set myco --models-path /v1/models
+lax provider set myco --base-url https://api2.example.com
+```
+
+传空值是用法错误。删除单项配置用 `provider unset`：
+
+```bash
+lax provider unset myco anthropic
+lax provider unset myco systemone
+lax provider unset myco models-path
+lax provider unset myco default-protocol
+lax provider rm myco
+```
+
+`unset` 是幂等操作：目标项不存在时不报错，只输出提示。删除后一条路由都不剩会被拒绝；这种场景应使用 `provider rm`。
+
+## 删除供应商
+
+```bash
+lax provider rm myco
+lax provider rm myco --force
+```
+
+仍被账号使用的供应商默认不能删除；`--force` 会删除供应商并停用指向它的账号。历史请求记录保留。
+
+## 默认协议
+
+`--default-protocol` 的取值是八条线协议。显式值必须落在已声明的路由上。
+
+不给显式值时，按以下顺序从**已声明的路由**里选：
+
+1. `openai-chat`
+2. `openai-responses`
+3. `anthropic`
+
+gemini、systemone、embeddings、speech 与 transcriptions 不会自动成为默认协议。只声明这些路由时必须同时给 `--default-protocol`，否则该供应商算不出默认协议。
+
+单条路由的供应商可以省略 `--default-protocol`，程序会取那一条。
+
+## 模型列表地址
+
+`model sync` 需要知道上游的模型清单从哪里取。取值顺序：
+
+1. `provider` 上的 `--models-path` 覆盖；
+2. 该账号的有效默认协议对应路由的 `models_path`；
+3. 对 openai-chat 路由自动推导 `/v1/models`。
+
+`--models-path` 既可以是相对路径，也可以是整条地址。没有列表接口的上游可以用 `model add` 手写模型，或让 `model sync --endpoint` 临时覆盖这一次调用。
+
+## 路径与占位符
+
+| 情况 | 规则 |
+| --- | --- |
+| 相对路径 | 必须配 `--base-url` |
+| 整条地址 | 可以省略 `--base-url`；同一供应商的不同协议可以落在不同域名 |
+| `{model}` | 只允许出现在 gemini 路由；替换时按 URL 路径段转义 |
+| 路径里的 `..` | 拒绝 |
+| 查询串与片段 | 不属于路由路径，应该由上游接口自己处理 |
+
+## 凭据头
+
+默认按线协议生成凭据头：
+
+| 线协议 | 默认头 |
+| --- | --- |
+| anthropic | `x-api-key: <key>` |
+| gemini | `x-goog-api-key: <key>` |
+| 其余 | `Authorization: Bearer <key>` |
+
+上游要求别的头时，在供应商上声明：
+
+```bash
+lax provider set myco --auth-header X-Api-Key --auth-scheme raw
+lax provider set myco --auth-header Authorization --auth-scheme bearer
+```
+
+`--auth-scheme` 取 `raw`、`bearer` 或 `bearer-semicolon`。声明之后只发这一个头，不再发协议默认头。附加请求头与凭据头分别维护，见[请求头](/docs/gateway/headers)。
+
+## 示例：只声明 gemini
+
+```bash
+lax provider add gem-proxy --base-url https://gemini.example.com \
+    --gemini '/v1beta/models/{model}:generateContent' \
+    --default-protocol gemini
+```
+
+gemini 的模型名在路径里，因此路由必须保留 `{model}` 占位符。入站路径由网关自己解析，出站路径由这条路由决定。
+

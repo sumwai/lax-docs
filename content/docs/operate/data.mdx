@@ -1,0 +1,81 @@
+---
+title: 数据与备份
+description: 配置文件、数据库、密钥、插件目录与搬迁顺序
+---
+
+lax 的状态分成两份：配置与数据。配置决定连哪里，数据保存账号、模型、策略与请求记录。
+
+## 文件位置
+
+| 路径 | 内容 | 权限 |
+| --- | --- | --- |
+| `$XDG_CONFIG_HOME/lax/config.json` | 监听地址、数据库路径、后端与 DSN | `0600` |
+| `$XDG_DATA_HOME/lax/lax.db` | SQLite 数据库；如果用的是外部库，则这里可能不存在 | `0600` |
+| `$XDG_DATA_HOME/lax/secret.key` | 凭据加密密钥 | `0600` |
+| `$XDG_DATA_HOME/lax/lax.pid` | `serve` 运行时的进程号；退出时删除 | `0600` |
+| `$XDG_DATA_HOME/lax/plugins/` | 已安装插件包：`installed/` 与 `staging/` | `0700` |
+
+没有设置 XDG 变量时，配置在 `~/.config/lax`，数据在 `~/.local/share/lax`。
+
+## 备份
+
+SQLite 运行时可能产生 `lax.db-wal` 与 `lax.db-shm`。备份前先停 `serve`，或使用 SQLite 的在线备份命令：
+
+```bash
+sqlite3 ~/.local/share/lax/lax.db ".backup '/backup/lax-$(date +%F).db'"
+```
+
+备份需要包含：
+
+- `config.json`；
+- 数据库；
+- `secret.key`；
+- `plugins/` 目录。
+
+只有数据库没有 `secret.key` 时，账号凭据无法解密。密钥与数据库要一起备份、一起恢复。
+
+## 搬迁
+
+1. 停掉旧机器的 `serve`；
+2. 复制配置、数据库、密钥与 `plugins/`；
+3. 在新机器上调整 `config.json` 里的 `db` 路径；
+4. 运行 `lax doctor`；
+5. 运行 `lax plugin verify --all`；
+6. 启动 `serve`，用 `lax model call` 验证一条请求。
+
+插件目录必须跟着数据目录一起搬。只搬数据库时，插件版本行还在，但包目录缺失，`plugin doctor` 会报错。
+
+## 外部数据库
+
+使用 PostgreSQL 或 MySQL 时：
+
+```json
+{
+  "addr": "127.0.0.1:4567",
+  "driver": "postgres",
+  "dsn": "postgres://user:pass@127.0.0.1:5432/lax?sslmode=disable"
+}
+```
+
+`secret.key` 仍在本机数据目录，不随数据库搬迁。换机器时要单独复制。
+
+多个 lax 进程共享同一个外部数据库时，`secret.key` 必须一致，否则各自加密的凭据无法互相解密。
+
+## 清理
+
+请求记录默认永久保留。目前没有内置的按时间清理命令。要控制数据库大小，可以：
+
+- 定期导出并清理旧记录；
+- 或把 SQLite 换成外部数据库，由外部数据库做归档。
+
+选号统计的分钟桶只保留 30 天，启动时自动清理。
+
+## 迁移旧库
+
+旧版本的 SQLite 单文件库在首次打开时自动迁移，原文件保留一份 `.bak`。迁移只做一次；升级前仍建议先备份。
+
+## 下一步
+
+- 升级流程：[升级](/docs/operate/upgrade)
+- 自检失败：[doctor](/docs/operate/doctor)
+

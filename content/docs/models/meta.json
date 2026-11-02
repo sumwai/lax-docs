@@ -1,7 +1,0 @@
-{
-  "title": "模型",
-  "icon": "Boxes",
-  "defaultOpen": true,
-  "collapsible": true,
-  "pages": ["index", "alias"]
-}

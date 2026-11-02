@@ -1,0 +1,127 @@
+---
+title: 模型管理
+description: 模型同步、探活、手写声明与状态排障
+---
+
+lax 不假设模型名固定。它从上游拉清单，再逐个验证可用性；需要时也可以手写一条声明。
+
+## 同步
+
+```bash
+lax model sync
+lax model sync --provider deepseek
+lax model sync --account ds
+lax model sync --account ds --endpoint /v1/models
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `--provider` | 只处理这家供应商的账号 |
+| `--account` | 只处理这个账号 |
+| `--endpoint` | 这一次临时覆盖模型列表路径；只影响本次调用 |
+
+不给筛选条件时处理全部账号。同步失败的账号不影响其它账号，但最终退出码为 1。
+
+支持的清单形状：
+
+| 形状 | 示例 |
+| --- | --- |
+| OpenAI 风格 | `{"data":[...]}` |
+| 通用风格 | `{"models":[...]}` |
+| 顶层数组 | `[...]` |
+| Gemini | `{"models":[{"name":"models/..."}]}`，去掉 `models/` 前缀，并记录每个模型支持的能力 |
+
+只有 Gemini 清单自动分页：每页带 `pageSize=1000`，有 `nextPageToken` 就继续取，最多 10 页。其它上游的列表地址原样请求，不追加查询参数。
+
+## 探活
+
+```bash
+lax model probe --account ds
+lax model probe --account ds --limit 5
+lax model probe --account ds --model deepseek-v4-pro
+lax model probe --account ds --protocol anthropic
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `--provider` | 只处理这家供应商的账号 |
+| `--account` | 只处理这个账号 |
+| `--model` | 只探这个模型 |
+| `--protocol` | 只探指定的线协议 |
+| `--limit` | 每个账号本次最多探几个模型 |
+| `--concurrency` | 并发数 |
+| `--max-age` | 新鲜结果的复用窗口 |
+| `--refresh` | 忽略新鲜结果，强制重探 |
+
+探活使用真实请求：对话模型发 `max_tokens=1`；systemone 发最小决策请求。终端里会在 stderr 显示原地刷新的进度；非终端或 `--json` 时没有进度行。
+
+行为细节：
+
+- 已经探过且结论新鲜的模型默认跳过，记录在账号模型行上的探活时间。
+- 401 会停用账号，后面的模型不再探。
+- 连接层失败先重试两次；仍失败时不改可达性，保留上一次的 `allowed`。
+- 403、404 与明确说模型不存在的 400 才写 `forbidden` 或 `missing`。
+- 某个账号没探出可用模型时，只写探活结果，原有模型列表保留。
+- 全部账号都没有可用模型时退出码为 1。
+
+## 手写声明
+
+模型不在上游清单里，或需要指定决策协议时：
+
+```bash
+lax model add typesafe/jev --account ts --protocol systemone
+lax model add custom-model --account ds
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `--account` | 必填；可达性写在账号上 |
+| `--provider` | 可省略；给了必须与账号所属供应商一致 |
+| `--protocol` | 这个模型在这个账号上的协议；不给只写可达性 |
+
+一次调用会同时写模型目录与账号可达性。重复执行结果相同。从 `forbidden`、`missing` 或 `error` 翻回 `allowed` 时，会清掉旧 HTTP 状态、错误与探活时间。
+
+只声明 systemone 路由的供应商必须显式设置默认协议，否则算不出有效出站协议。
+
+## 查看
+
+```bash
+lax model ls
+lax model ls --provider deepseek
+lax model ls --account ds
+lax model show deepseek-v4-pro --account ds
+```
+
+`model ls` 列出模型、可用账号、协议、上下文长度、最大输出、支持协议与价格。`--json` 还带每个账号的冷却截止时间、连续失败次数、HTTP 状态、探活时间与错误。
+
+`model show` 只读库，不发上游请求。它回答的是“这个账号上的这个模型现在是什么状态”。
+
+## 状态值
+
+| 可达性 | 含义 | 参与选号 |
+| --- | --- | --- |
+| `allowed` | 探活通过或手工声明可用 | 是 |
+| `forbidden` | 上游返回 403，通常是权限或套餐问题 | 否 |
+| `missing` | 上游说不存在这个模型 | 否 |
+| `error` | 其它失败 | 否 |
+
+同步或手写进来的 `allowed` 行还没有探活结论，`model ls` 显示为“待探活”。模型还可能因为账号停用或冷却而不参与选号。冷却按账号 + 模型隔离，`model ls` 会显示冷却截止时间。
+
+## 排障顺序
+
+```text
+模型名错误 ─→ lax model ls 核对名字
+     │
+     ▼
+没有登记 ─→ lax model sync / lax model add
+     │
+     ▼
+待探活 ─→ lax model probe
+     │
+     ▼
+不可用 ─→ lax model show 看 HTTP 状态与错误
+     │
+     ▼
+可用但请求失败 ─→ lax route explain 看候选与冷却
+```
+

@@ -1,7 +1,0 @@
-{
-  "title": "命令行参考",
-  "icon": "SquareTerminal",
-  "defaultOpen": true,
-  "collapsible": true,
-  "pages": ["index", "account", "provider", "model", "records", "decide", "system"]
-}

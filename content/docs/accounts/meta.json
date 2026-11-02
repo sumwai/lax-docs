@@ -1,7 +1,0 @@
-{
-  "title": "账号",
-  "icon": "Users",
-  "defaultOpen": true,
-  "collapsible": true,
-  "pages": ["index", "failover"]
-}

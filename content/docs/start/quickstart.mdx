@@ -1,0 +1,105 @@
+---
+title: 快速开始
+description: 从一个新数据库到第一条成功请求
+---
+
+下面假设已经完成[安装](/docs/start/install)。示例里的账号名 `ds` 是自取的，后续命令使用同一个名字。
+
+## 1. 加一个账号
+
+```bash
+lax account add ds --provider deepseek --key sk-xxx
+```
+
+`--provider` 必须是已经存在的供应商。内置供应商包含 anthropic、openai、deepseek、moonshot、kimi、openrouter、ollama、commandcode 与 google-gemini；也可以用 `lax provider add` 新建。
+
+不想把 key 写进 shell 历史时，从标准输入读：
+
+```bash
+lax account add ds --provider deepseek --key - < key.txt
+```
+
+账号凭据加密入库，命令行输出只显示掩码。
+
+## 2. 同步上游模型清单
+
+```bash
+lax model sync --account ds
+```
+
+这一步只调用上游的模型列表接口，把模型名写进本地目录，并把该账号标成允许使用这些模型。它不发送对话请求，也不证明模型真的可用。
+
+## 3. 探活
+
+```bash
+lax model probe --account ds
+```
+
+探活会逐模型发送一条最小请求：对话模型使用 `max_tokens=1`，决策模型使用最小决策请求。只有探测通过的模型才进入选号。
+
+先小范围验证：
+
+```bash
+lax model probe --account ds --limit 3
+```
+
+## 4. 查看可用模型
+
+```bash
+lax model ls --account ds
+```
+
+输出里每个模型带上提供它的账号、协议、冷却状态与价格。要确认一个具体账号上的事实：
+
+```bash
+lax model show deepseek-v4-pro --account ds
+```
+
+## 5. 启动网关
+
+```bash
+lax serve
+```
+
+默认监听 `127.0.0.1:4567`，前台运行，`Ctrl-C` 退出。启动前可以先用 `lax doctor` 检查端口与数据库。
+
+## 6. 发第一条请求
+
+另开一个终端，用内置的 `model call` 验证，不必先配置客户端：
+
+```bash
+lax model call "用一句话介绍自己" --model deepseek-v4-pro
+```
+
+如果要看选号过程与实际请求地址：
+
+```bash
+lax model call "用一句话介绍自己" --model deepseek-v4-pro --debug
+```
+
+也可以直接打 HTTP 入口：
+
+```bash
+curl -s http://127.0.0.1:4567/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"hi"}]}'
+```
+
+## 7. 看记录
+
+```bash
+lax log tail
+lax usage
+```
+
+`log tail` 给出每次尝试的协议、账号、状态、token 与耗时；`usage` 按账号、模型或日期汇总。
+
+## 接下来
+
+| 目标 | 页面 |
+| --- | --- |
+| 配 Claude Code、Codex 或 SDK | [客户端接入](/docs/start/clients) |
+| 多账号切换顺序 | [选号](/docs/route) |
+| 接自定义供应商 | [供应商与路由](/docs/configure/providers) |
+| 模型价格与花费估算 | [模型定价](/docs/configure/pricing) |
+

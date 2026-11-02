@@ -1,0 +1,143 @@
+---
+title: 方言
+description: 操作、方言绑定与上游请求形状
+---
+
+方言描述“这个模型调用这个操作时，上游报文长什么样”。它不负责选号、凭据、路由、超时或记账，这些仍由宿主完成。
+
+## 操作
+
+操作名固定，不含线协议名：
+
+| 操作 | 入站 | 出站 |
+| --- | --- | --- |
+| `chat.complete@1` | 四条对话协议 | 四条对话协议 |
+| `embeddings.create@1` | `/v1/embeddings` 或 gemini `:embedContent` | openai-embeddings |
+| `system.decide@1` | `/v1/systemone` | systemone |
+| `speech.synthesize@1` | `/v1/audio/speech` | 方言决定 |
+| `speech.transcribe@1` | `/v1/audio/transcriptions` | 方言决定 |
+
+## 内置方言
+
+内置方言随二进制发布，不经 `plugin install`：
+
+| 方言 | 操作 | 上游形状 | 实现 |
+| --- | --- | --- | --- |
+| `lax/anthropic@1` | chat | anthropic | 宿主编解码 |
+| `lax/openai-chat@1` | chat | openai-chat | 宿主编解码 |
+| `lax/openai-responses@1` | chat | openai-responses | 宿主编解码 |
+| `lax/gemini@1` | chat | gemini | 宿主编解码 |
+| `lax/openai-embeddings@1` | embeddings | openai-embeddings | 同协议直通 |
+| `lax/systemone@1` | systemone | systemone | 同协议直通 |
+| `lax/openai-speech@1` | speech | openai-speech | 同协议直通 |
+| `lax/openai-transcriptions@1` | transcription | openai-transcriptions | 同协议直通 |
+| `lax/mimo-chat-speech@1` | speech | openai-chat | Go 实现的 chat 方言 |
+| `lax/mimo-chat-asr@1` | transcription | openai-chat | Go 实现的 chat 方言 |
+
+`lax/` 前缀保留给内置方言，插件不能使用。
+
+## 查看与修改绑定
+
+```bash
+lax model dialect ls
+lax model dialect ls glm-4.6
+lax model dialect set glm-4.6 chat.complete@1 lax/openai-chat@1 --provider bigmodel
+lax model dialect unset glm-4.6 chat.complete@1 --provider bigmodel
+```
+
+`model capability` 也可以写语音绑定：
+
+```bash
+lax model capability add doubao-seed-tts --capability speech --dialect lax/mimo-chat-speech@1
+```
+
+`--dialect` 是覆盖语义；`unset` 删不到时报错。`--provider` 不给时按模型名唯一确定。
+
+## 插件方言
+
+插件可以在 `dialects.json` 里声明两种方言：
+
+| 实现 | 运行时 | 能承载 |
+| --- | --- | --- |
+| 声明式映射 | `declarative` | 两条语音操作 |
+| `hook` | `moejs` | 任意操作 |
+
+声明式方言由宿主按映射求值，不执行 JS。hook 方言在沙箱里跑 `prepare_request`、`decode_response` 与 `decode_stream`。
+
+`implementation.prepare` 与 `implementation.decode` 都写 `hook` 的方言只能由 `moejs` 插件承载；一半声明式一半 hook 会在安装时被拒。
+
+## hook 方言接口
+
+宿主与方言之间的接口只有五个方法：
+
+| 方法 | 作用 |
+| --- | --- |
+| `ID()` | 方言 ID |
+| `Operation()` | 承载的操作 |
+| `UpstreamWire()` | 上游线协议 |
+| `Prepare(Input)` | 编出上游请求 |
+| `Decode(Input, Response)` | 解上游响应 |
+
+能逐块解上游流的方言另实现 `StreamDialect`。
+
+## 请求计划
+
+`Prepare` 返回 `Plan`：
+
+| 字段 | 说明 |
+| --- | --- |
+| `Body` | 字节或 JSON 对象 |
+| `Path` | 可选的相对路径；必须以 `/` 开头，不含 `..` |
+| `Headers` | 本次请求额外带的头 |
+
+`Path` 只能改路径，不能换域名；域名与凭据只能来自供应商路由。语音路径不看 `Path`，但会使用 `Headers`。
+
+## 结果
+
+`Decode` 返回 `Result`：
+
+| 种类 | 字段 | 适用 |
+| --- | --- | --- |
+| `media` | `body_base64` | 语音 |
+| `text` | `text` | systemone |
+| `json` | 出站线协议形状的 JSON | 对话、向量化、决策 |
+
+`json` 结果不是入站形状，而是上游那一条协议的形状。宿主再解码成中间表示并按客户端协议编码。
+
+## 流式
+
+需要流式的方言实现 `StreamDialect`：
+
+| 事件 | 作用 |
+| --- | --- |
+| `text` | 文本增量 |
+| `thinking` | 思考增量 |
+| `tool_start` / `tool_args` | 工具调用 |
+| `stop` | 结束并带用量 |
+| `error` | 错误增量 |
+
+客户端要流式而方言没有实现 `StreamDialect` 时，在发上游请求之前返回 400，不静默退回非流式。
+
+## 失败关闭
+
+以下情况不会静默回退：
+
+| 情况 | 结果 |
+| --- | --- |
+| 模型绑了未注册的方言 | 400 |
+| 方言的 `UpstreamWire` 与模型有效出站协议不一致 | 400 |
+| 客户端要流式但方言没有流实现 | 400 |
+| 声明式方言绑到非语音操作 | 安装时拒绝 |
+| `ResultJSON` 的入站不是对话协议 | 502 |
+| `ResultText` 的入站不是 systemone | 502 |
+| `Path` 不是相对路径 | 502，请求没发出去 |
+| 解流失败 | 已写出的字节收不回，记失败，不换号 |
+
+## 指定绑定
+
+```bash
+lax model dialect set echo-v1 chat.complete@1 com.example.echo/chat@1 --provider echo
+```
+
+非语音操作绑定到插件 hook 方言时，`set` 会提示网关会按方言处理；绑定到声明式方言会在安装时被拒。
+

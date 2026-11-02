@@ -1,61 +1,124 @@
 ---
 title: 错误响应
-description: 网关状态码、各入站协议的错误体形状与流式中断的收尾帧
+description: 状态码、四种入站错误体与流式中断的收尾
 ---
 
-## 错误响应
+错误体的形状由入站协议决定，不由上游协议决定。同一句错误发给 anthropic 客户端与 gemini 客户端时，字段不同。
 
-网关自身给出的状态码与触发条件：
+## 状态码
 
-| 状态码 | 触发条件 |
+| 状态 | 含义 |
 | --- | --- |
-| 404 | 未知路径 |
-| 400 | 请求体解析失败、协议不相通、带 `"stream": true` 的决策请求 |
-| 405 | 方法不匹配，响应带 `Allow` 头 |
-| 413 | 决策请求体超过 8 MiB |
-| 503 | 候选账号全部失败（上游报错、都在冷却、都被停用），响应带最后一次上游错误的摘要 |
+| 400 | 请求不合法：模型名解析失败、协议不相通、缺少能力或路径参数错误 |
+| 401 | 上游凭据被拒；账号会被停用 |
+| 403 | 上游拒绝权限或套餐；原样返回，不停用账号 |
+| 404 | 模型名不在清单，或路径不存在 |
+| 405 | 路径存在但方法不对，带 `Allow` |
+| 413 | 请求体超过上限 |
+| 429 | 上游限流 |
+| 500 | 网关内部错误，例如读选号策略或数据库失败 |
+| 502 | 网关没有拿到上游响应，或方言构造失败 |
+| 503 | 模型有提供者，但候选都失败或在冷却 |
 
-错误体按入站协议给出对应结构：
+## 四种错误体
 
-| 入站协议 | 错误体 |
-| --- | --- |
-| anthropic | `{"type":"error","error":{"type":…,"message":…}}` |
-| openai-chat、openai-responses、openai-embeddings | `{"error":{"message":…,"type":…,"param":null,"code":null}}` |
-| gemini | `{"error":{"code":<HTTP 状态码>,"message":…,"status":…}}` |
-| systemone | `{"detail":{"error_type":…,"message":…}}` |
+### anthropic
 
-`/v1/models`、`/v1/models/{id}`、`/healthz`、405 与未知路径没有按入站协议成形，统一用 anthropic 那种顶层带 `type` 的形状。
+```json
+{
+  "type": "error",
+  "error": {
+    "type": "not_found_error",
+    "message": "清单里没有模型 x"
+  }
+}
+```
 
-gemini 的 `status` 取值：
+`error.type` 取 `invalid_request_error`、`not_found_error`、`authentication_error`、`permission_error`、`api_error` 或 `rate_limit_error`。
 
-| HTTP | `status` |
+### openai-chat
+
+```json
+{
+  "error": {
+    "message": "清单里没有模型 x",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": null
+  }
+}
+```
+
+### openai-responses
+
+形状与 openai-chat 相同。`param` 与 `code` 显式给 `null`，因为 SDK 会读这两个键是否存在。
+
+### gemini
+
+```json
+{
+  "error": {
+    "code": 404,
+    "message": "清单里没有模型 x",
+    "status": "NOT_FOUND"
+  }
+}
+```
+
+`code` 是本次 HTTP 状态码，`status` 由它映射：
+
+| HTTP | status |
 | --- | --- |
 | 400 | `INVALID_ARGUMENT` |
 | 401 | `UNAUTHENTICATED` |
 | 403 | `PERMISSION_DENIED` |
 | 404 | `NOT_FOUND` |
+| 405 | `UNIMPLEMENTED` |
 | 429 | `RESOURCE_EXHAUSTED` |
 | 500 | `INTERNAL` |
 | 503 | `UNAVAILABLE` |
+| 其它 | `UNKNOWN` |
 
-systemone 的 `error_type` 取值：
+### systemone
 
-| `error_type` | 出现场合 |
+```json
+{
+  "detail": {
+    "error_type": "invalid_request_error",
+    "message": "请求里的 model 不是 systemone 协议"
+  }
+}
+```
+
+字段名是 `error_type`，不是 `type`。
+
+## 没有入站协议时
+
+`/v1/models`、`/healthz`、405、未知路径与内部错误没有客户端协议可依，统一使用 anthropic 形状。
+
+## 流式错误
+
+流式已经开始后，错误以入站协议的事件帧发到流里：
+
+| 协议 | 形状 |
 | --- | --- |
-| `invalid_request_error` | 请求体不合法（缺 `model`、`questions` 为空、带 `"stream": true`）、协议不相通、上游按 400 或 422 拒绝 |
-| `authentication_error` | 凭据被上游拒绝 |
-| `permission_error` | 账号无权使用该模型 |
-| `not_found_error` | 没有账号提供这个模型，或上游回 404 |
-| `rate_limit_error` | 上游限流 |
-| `api_error` | 上游其它错误，以及候选账号全部失败 |
+| anthropic | `event: error` 加 `data: {...}` |
+| chat | `data: {"error":{...}}` |
+| responses | `response.failed` 一类错误事件 |
+| gemini | 一条 `{"error":{"code":...,"message":...,"status":...}}` 帧 |
 
-上游自己的校验错误（422，`detail` 是数组）原样透传：状态码与正文都不重新包装，网关只是不把数组转成对象。
+已经写出的字节收不回来，因此流式中断不会换号，也不会把同一个请求重发一遍。
 
-流式请求中断时，已发出的字节不改写，只在末尾补该协议的错误帧与合法结尾：
+## 错误文案
 
-| 入站协议 | 追加内容 |
+网关的错误消息说明发生了什么与下一步做什么，不只转述上游原文。上游错误会尽量解出 `error.message`，去掉重复的状态码与协议内部字段后返回。
+
+排查入口：
+
+| 命令 | 用途 |
 | --- | --- |
-| anthropic | `event: error` 加 `message_delta`、`message_stop` |
-| openai-chat | 一帧 `data: {"error":…}` 加 `[DONE]` |
-| openai-responses | `error` 与 `response.failed` |
-| gemini | 一帧 `data: {"error":…}` 加带 `finishReason` 的帧 |
+| `lax log tail` | 看这一次请求的状态、账号与上游错误 |
+| `lax model show` | 看模型在某个账号上的可达性与最近错误 |
+| `lax route explain` | 看候选与排除原因 |
+| `lax doctor` | 检查配置、数据库与端口 |
+

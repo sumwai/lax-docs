@@ -1,0 +1,106 @@
+---
+title: 日志
+description: 请求记录、插件日志与持续跟随
+---
+
+lax 有两类日志：请求记录与插件日志。前者在数据库里，后者也在数据库里，并同时打到 `serve` 的标准输出。
+
+## 请求记录
+
+```bash
+lax log tail
+lax log tail -n 50
+lax log tail --follow
+lax log tail --json
+```
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `-n` | 条数 | `20` |
+| `--follow` | 持续输出新记录，`Ctrl-C` 结束 | 关 |
+
+`--follow` 每秒拉一次新记录，按 ID 递增补打；`--json` 时每批新记录输出一个数组。
+
+## 人读列
+
+| 列 | 内容 |
+| --- | --- |
+| 时间 | `01-02 15:04:05` |
+| 协议 | `入站→出站`，例如 `anthropic→openai-chat`；两边相同表示直通 |
+| 模型 | 请求名与真实名不同时写成 `fast → glm-4.6` |
+| 账号 | 账号名；账号已删除时写 `-` |
+| 状态 | HTTP 状态码；失败时带 `✗` |
+| 输入 / 输出 / 思考 / 缓存读 / 缓存写 | token 数；未上报为 0 |
+| 耗时 | 毫秒 |
+| 错误 | 上游错误摘要；超过显示宽度截断 |
+
+## JSON 字段
+
+```json
+{
+  "ts": 1793583928,
+  "inbound": "anthropic",
+  "outbound": "openai-chat",
+  "model": "fast",
+  "model_used": "glm-4.6",
+  "account": "acct-a",
+  "http_status": 200,
+  "ok": true,
+  "in_tokens": 120,
+  "out_tokens": 80,
+  "reasoning_tokens": 0,
+  "cache_read": 0,
+  "cache_write": 0,
+  "latency_ms": 642,
+  "error": ""
+}
+```
+
+| 字段 | 内容 |
+| --- | --- |
+| `ts` | 记录时间，Unix 秒 |
+| `inbound` / `outbound` | 实际使用的协议对 |
+| `model` / `model_used` | 客户端请求名与实际模型名 |
+| `account` | 账号名 |
+| `http_status` / `ok` | 上游状态码与是否成功 |
+| `in_tokens` / `out_tokens` / `reasoning_tokens` | token |
+| `cache_read` / `cache_write` | 缓存读写 |
+| `latency_ms` | 耗时 |
+| `error` | 错误摘要，成功时为空串 |
+
+## 每次尝试一条记录
+
+一次客户端请求可能尝试多个账号。每次尝试各写一条记录，因此：
+
+- 失败尝试也有一行；
+- 换号后的成功尝试是另一行；
+- 流式请求中断后不换号，只有一行。
+
+请求记录里的 `http_status` 是上游状态码。网关没有拿到任何上游响应时记 502。
+
+## 插件日志
+
+```bash
+lax plugin logs com.example.echo
+lax plugin logs com.example.echo --level warn
+lax plugin logs com.example.echo --limit 100
+lax plugin logs com.example.echo --follow
+```
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--level` | `debug`、`info`、`warn` 或 `error` | 全部 |
+| `--limit` | 最多显示条数 | `50` |
+| `--follow` | 持续跟随 | 关 |
+
+插件日志也打到 `serve` 的标准输出。请求记录与插件日志是两套数据，不要拿 `log tail` 查插件错误。
+
+## 日志与隐私
+
+凭据不进入请求记录、插件日志或命令行输出。请求头与响应头不落库。错误摘要会过 secret 清洗，避免上游回显的 key 被写进数据库。
+
+## 下一步
+
+- 看整体用量：[用量与花费](/docs/operate/usage)
+- 自检：[doctor](/docs/operate/doctor)
+

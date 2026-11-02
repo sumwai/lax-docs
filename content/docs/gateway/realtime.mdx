@@ -1,0 +1,58 @@
+---
+title: 流式与断开
+description: SSE 转发、收尾帧、客户端主动断开与上游断流
+---
+
+四条对话协议与 gemini 都支持流式。向量化、systemone 与语音只支持非流式响应。
+
+## 流式路径
+
+| 协议 | 流式表达 |
+| --- | --- |
+| anthropic | 具名事件：`message_start`、`content_block_delta`、`message_stop` |
+| openai-chat | 只有 `data` 帧，末尾 `[DONE]` |
+| openai-responses | 具名事件：`response.created`、`response.output_text.delta`、`response.completed` |
+| gemini | `data:` 帧，每帧一个 `GenerateContentResponse` |
+
+## 直通与重编码
+
+入站与出站协议相同且属于宿主直通协议时，SSE 帧按字节转发，网关只旁路读取用量。
+
+跨协议时，网关逐帧解码成增量，再按客户端协议重新编码。工具调用与思考内容在这条路径上会被拆成对应协议的事件。
+
+## 收尾
+
+正常结束时，网关按客户端协议发送收尾帧并带上已读到的用量。上游没有给出收尾帧而连接直接结束时，网关补一个错误帧，再补一个带结束原因的收尾帧。
+
+gemini 的 `finishReason=SAFETY` 一类非正常结束按正常结束转给客户端，原值只进网关日志。
+
+## 客户端主动断开
+
+客户端关闭连接时，网关：
+
+- 停止读取上游；
+- 请求记录标为客户端断开，不按上游失败计；
+- 冷却与失败次数不变；
+- 不换号，因为客户端已经不再等待。
+
+这与上游断流不同。上游已经返回部分内容后中断，会记失败，但也不换号：已经写出的字节无法撤回。
+
+## 流式与重试
+
+只有尚未向客户端写出任何字节时，失败才可以换号重试。一旦写出，重试只会把半截响应再打一遍。
+
+## 超时
+
+网关按上游响应头与读取进度判断连接层失败；读超时、TLS 失败与 `unexpected EOF` 都按连接层失败冷却该账号的这个模型。
+
+正在长时间生成文本时，只要上游还在送数据，就不算超时。
+
+## 手工验证
+
+```bash
+lax model call "写一段 200 字介绍" --model deepseek-v4-pro --stream
+lax model call "hi" --model gemini-2.5-pro --protocol gemini --stream
+```
+
+`model call` 在进程内起临时网关，走的是与外部客户端相同的路径。
+

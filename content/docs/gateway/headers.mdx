@@ -1,37 +1,90 @@
 ---
 title: 请求头
-description: 客户端头透传名单、凭据头生成规则与附加请求头的叠加顺序
+description: 客户端头透传、凭据头生成与供应商附加头的叠加顺序
 ---
 
-上游请求头由网关构造，不整体转发入站头。照抄入站头会把客户端自己的凭据送到上游，也会把逐跳头拼坏。
+一次上游请求的头由三部分组成：网关自己生成的头、客户端透传的头、供应商声明的附加头。三者有明确优先级。
 
-特性开关类头必须透传，否则客户端只看到「特性没生效」而无任何错误。
+## 凭据头
 
-三类头按顺序叠加，同名时后一层覆盖前一层。以 anthropic 出站、客户端带了版本与 beta 头、供应商又声明了会话头为例：
+默认由入站或出站线协议决定：
+
+| 线协议 | 默认头 |
+| --- | --- |
+| anthropic | `x-api-key: <key>` |
+| gemini | `x-goog-api-key: <key>` |
+| 两条 openai 协议 | `Authorization: Bearer <key>` |
+| embeddings | `Authorization: Bearer <key>` |
+| speech / transcriptions | `Authorization: Bearer <key>` |
+| systemone | 按供应商声明或默认推导 |
+
+供应商可以覆盖：
 
 ```bash
-# 上游实际发出的请求头
-x-api-key: sk-账号凭据                         # [!code highlight]
-anthropic-version: 2023-06-01                 # [!code --]
-anthropic-version: 2024-11-05                 # [!code ++]
-anthropic-beta: extended-thinking-2025-05-14  # [!code ++]
-x-opencode-session: sess-7f3a                 # [!code ++]
+lax provider set myco --auth-header X-Api-Key --auth-scheme raw
+lax provider set myco --auth-header Authorization --auth-scheme bearer
 ```
 
-三行的来源不同：
+`raw` 表示头值就是 key；`bearer` 表示 `Bearer <key>`；`bearer-semicolon` 表示 `Bearer;<key>`。声明之后不再发送协议默认头。
 
-- 标亮的一行由出站协议按账号凭据生成；
-- 中间两行来自客户端，只在入站与出站协议相同时透传，客户端的 `anthropic-version` 替换默认值而不是与之并存；
-- 最后一行是供应商[附加请求头](/docs/providers/headers)，即声明在供应商上、每条上游请求都要带的头（例如按会话路由的上游要求的会话头）。它覆盖写入，连客户端带来的同名头一起压掉。
+## 客户端头透传
 
-| 规则 | 内容 |
+只有白名单里的客户端头会带到上游，避免把客户端的 `Host`、`Cookie` 或 `Authorization` 发错地方。
+
+| 头 | 说明 |
 | --- | --- |
-| 透传条件 | 仅当入站协议与出站协议相同 |
-| 透传名单 | anthropic：`anthropic-beta`（可多次）、`anthropic-version`；openai-chat 与 openai-responses：`openai-beta`、`openai-organization`、`openai-project`；gemini：无（特性开关在查询串与请求体里）；systemone：无（决策请求没有靠头开关的特性） |
-| 永不透传 | 凭据类（`Authorization`、`x-api-key`、`x-goog-api-key`）、`Cookie`、逐跳头（`Host`、`Connection`、`Content-Length`、`Transfer-Encoding`、`Expect`、`Upgrade`）、本网关的 `x-lax-session`（用途见[会话粘性](/docs/accounts/failover#会话粘性)） |
-| 凭据头 | anthropic 用 `x-api-key`，gemini 用 `x-goog-api-key`，openai-chat、openai-responses 与 systemone 用 `Authorization: Bearer` |
-| 凭据归属 | 客户端发来的凭据头无作用，上游收到的始终是账号的凭据 |
-| 超长处理 | 单个头值超过 8KB 时丢弃该头，日志记头名与长度 |
-| 默认值 | `anthropic-version` 未提供时仍发 `2023-06-01` |
+| `anthropic-beta` | anthropic 的 beta 功能开关 |
+| `anthropic-version` | anthropic API 版本 |
+| `openai-beta` | OpenAI beta 功能开关 |
+| `openai-organization` | OpenAI 组织 ID |
+| `openai-project` | OpenAI 项目 ID |
 
-附加头的声明与删除命令见[供应商命令](/docs/cli/provider#header-set)。
+只有入站协议与有效出站协议相同时才透传。从 anthropic 转到 chat 时，`anthropic-beta` 发给 chat 上游只会换回 400，因此一个头都不带。单条头的值超过 8 KiB 时整条丢弃。
+
+客户端的 `Authorization`、`x-api-key`、`x-goog-api-key`、`Cookie`、逐跳头与 `x-lax-session` 不会透传；凭据由网关按账号注入。
+
+## 供应商附加头
+
+上游除凭据外还要求别的头时，在供应商上声明：
+
+```bash
+lax provider header set opencode x-opencode-session '{session}' --protocol openai-chat
+lax provider header ls opencode
+lax provider header unset opencode x-opencode-session --protocol openai-chat
+```
+
+值可以使用三种整值模板：
+
+| 写法 | 展开 |
+| --- | --- |
+| `{session}` | 本次请求的会话键；没有时每次请求生成一个 UUID |
+| `{model}` | 本次请求的模型名；模型列表请求没有模型名时不发这个头 |
+| `{env:NAME}` | 环境变量 `NAME` 的值；未设置或为空时不发这个头 |
+
+模板必须占满整个值，不做局部替换。展开结果含回车、换行或 NUL 时不发这个头。
+
+作用范围：
+
+| 参数 | 作用 |
+| --- | --- |
+| 不给 `--protocol` | 这个供应商的全部上游请求 |
+| `--protocol <协议>` | 只加给这条协议对应的路由 |
+
+## 叠加顺序
+
+1. 网关基础头（`Content-Type`、`Accept`、主机等）；
+2. 凭据头（供应商声明或协议默认生成）；
+3. 客户端白名单头（同名的覆盖凭据默认值，例如 `anthropic-version`）；
+4. 供应商附加头（同名的覆盖客户端头）；
+5. 插件方言逐请求头（同名时最后生效）。
+
+供应商附加头可以覆盖凭据头；插件方言的逐请求头不能设置凭据、Cookie、逐跳头或 `proxy-*` 等保留头。
+
+## 不进请求记录
+
+请求记录保存协议、模型、账号、状态、token、耗时与错误摘要，不保存请求头与响应头。凭据头本身也不进入任何输出。
+
+## 调试头
+
+手工验证时加 `--debug`，`model call` 会把实际请求地址与上游状态写到 stderr。它不打印凭据头。
+

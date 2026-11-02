@@ -1,89 +1,109 @@
 ---
 title: 决策请求
-description: systemone 协议的请求与响应、三种问题类型、上限与协议互通边界
+description: systemone 协议的请求、响应、问题类型与互通边界
 ---
 
-systemone 是第五条线协议，与其余四条不同：它不是对话，不产出文本，也没有消息序列。一次请求给一份被判断的材料 `state` 与一组带名字的问题 `questions`，返回每个问题带类型的答案与概率。
+systemone 不是对话协议。它给一份材料与一组问题，返回每个问题的答案与概率，不产出文本。
 
-需要模型对一份材料给固定结论时用它：给几个选项让它选一个、按级别打分，或回答一个是非问题，拿回的是概率与置信度，不是一段文字。
-
-| 项 | 取值 |
-| --- | --- |
-| 入站路径 | `POST /v1/systemone`，非流式 |
-| 模型名位置 | 请求体的 `model` 字段，不在路径上 |
-| `state` | 被判断的材料，纯文本与 JSON（对象、数组、带引号的字符串）都收 |
-| 转发内容 | `model` 之外的字段（`state`、`questions`、`assets`）原样带给上游 |
-| 响应 | 原样返回，网关不改写 |
-| 请求体上限 | 8 MiB，超过返回 413 |
-| 用量 | 只有 `input_tokens` 与 `output_tokens`，没有缓存与思考两项 |
-
-`lax decide` 发的是同一种请求，参数与输出见[决策请求命令](/docs/cli/decide)。下面是直接打网关的一条：
+## 请求
 
 ```bash
 curl -s http://127.0.0.1:4567/v1/systemone \
-    -H 'Content-Type: application/json' \
-    -d '{
-      "model": "jev-latest",
-      "state": "付款失败三天，损失在扩大，请今天处理",
-      "questions": {
-        "urgent": {"type": "noul", "instructions": "是否要求今天处理"},
-        "team":   {"type": "choice", "instructions": "该交给哪个团队",
-                   "criteria": {"billing": "付款与扣款", "technical": "软件故障"}},
-        "anger":  {"type": "score", "instructions": "情绪强度",
-                   "criteria": ["平静", "不满", "愤怒"]}
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "typesafe/jev",
+    "state": "付款失败三天，损失在扩大，请今天处理",
+    "questions": {
+      "urgent": {"type": "noul", "instructions": "是否要求今天处理"},
+      "team": {
+        "type": "choice",
+        "instructions": "该交给哪个团队",
+        "criteria": {"billing": "付款与扣款", "technical": "软件故障"}
+      },
+      "anger": {
+        "type": "score",
+        "instructions": "情绪强度",
+        "criteria": ["平静", "不满", "愤怒"]
       }
-    }'
+    }
+  }'
 ```
 
-响应里的 `answers` 按问题名给出结论，`usage` 给出输入与输出 token：
+| 字段 | 说明 |
+| --- | --- |
+| `model` | 模型名，在请求体里 |
+| `state` | 被判断的材料，纯文本或 JSON 都收 |
+| `questions` | 问题对象，键是问题名 |
+
+## 问题类型
+
+| 类型 | 请求写法 | 答案字段 |
+| --- | --- | --- |
+| `noul` | `{"type":"noul","instructions":"…"}` | `noul`：回答“是”的概率 |
+| `choice` | `{"type":"choice","instructions":"…","criteria":{"a":"说明","b":"说明"}}` | `choice`、`confidence`、`probabilities` |
+| `score` | `{"type":"score","instructions":"…","criteria":["低","中","高"]}` | `score`、`confidence`、`legend`、`probabilities` |
+
+`score` 的 `criteria` 按从低到高排列，至少两级。`choice` 的 `criteria` 是对象，键是选项名。
+
+## 响应
 
 ```json
 {
   "model": "jev-1.14.0",
   "answers": {
-    "urgent": { "type": "noul", "noul": 0.98 },
-    "team":   { "type": "choice", "choice": "billing", "confidence": 0.98 },
-    "anger":  { "type": "score", "score": 1.08, "confidence": 0.86, "legend": { "1": "不满" } }
+    "urgent": {"type": "noul", "noul": 0.98},
+    "team": {"type": "choice", "choice": "billing", "confidence": 0.98},
+    "anger": {"type": "score", "score": 1.08, "confidence": 0.86, "legend": {"1": "不满"}}
   },
-  "usage": { "input_tokens": 386, "output_tokens": 61 }
+  "usage": {"input_tokens": 386, "output_tokens": 61}
 }
 ```
 
-示例省去了 `probabilities`（每个选项或级别各一项）与 `legend` 里其余级别。请求写 `jev-latest` 时，上游返回的 `model` 可能是它解析出的具体版本（如 `jev-1.14.0`），网关不改写这个字段。
+网关不改写响应；`model` 是上游返回的具体版本。
 
-## 三种问题类型
-
-每个问题写成一个对象，`type` 定类型，`instructions` 是问句，`criteria` 按类型给选项或级别：
-
-| 类型 | 请求里的写法 | 答案里的字段 |
-| --- | --- | --- |
-| `noul` 是/否 | `{"type":"noul","instructions":"…"}`，`criteria` 可选 | `noul`：回答「是」的概率，0 到 1 |
-| `choice` 选一 | `{"type":"choice","instructions":"…","criteria":{"billing":"付款与扣款","technical":"软件故障"}}` | `choice` 选中的 key、`confidence`、`probabilities` 每个选项一项 |
-| `score` 评分 | `{"type":"score","instructions":"…","criteria":["平静","不满","愤怒"]}` | `score` 分数（可以是小数）、`confidence`、`legend` 级别序号到名称、`probabilities` 每个级别一项 |
-
-`score` 的 `criteria` 是有序数组，按从低到高写，至少两级。`choice` 的 `criteria` 是对象，键是选项名，值是说明；说明可以省略。
-
-## 上限与流式
+## 上限
 
 | 项 | 上限 | 超过时 |
 | --- | --- | --- |
-| 一次请求的问题数 | 100 个 | 上游拒绝 |
+| 一次请求的问题数 | 100 | 上游拒绝 |
 | `state` 与全部问题合计 | 64K token | 上游拒绝 |
 | `state` 与最长单个问题合计 | 32K token | 上游拒绝 |
 | 请求体 | 8 MiB | 网关返回 413 |
 
-问题数与两项 token 上限由上游判定，网关不重复校验，只把上游的拒绝原样透传。
+请求带 `"stream": true` 时返回 400；这条协议没有 SSE。
 
-请求体带 `"stream": true` 时网关直接返回 400：这条协议一个请求只回一个 JSON 响应，没有 SSE 可等。
+## 接入一个决策模型
 
-## 与对话协议不互通
+决策模型通常不在上游模型清单里，需要手写声明：
+
+```bash
+lax provider add typesafe --base-url https://api.typesafe.ai \
+    --systemone /v1/systemone --default-protocol systemone
+lax account add ts --provider typesafe --key sk-xxx
+lax model add typesafe/jev --account ts --protocol systemone
+lax model probe --account ts --model typesafe/jev --protocol systemone
+```
+
+只声明 systemone 路由时必须显式给 `--default-protocol systemone`。
+
+## 不互通
 
 | 请求 | 结果 |
 | --- | --- |
-| `POST /v1/systemone`，模型的有效出站协议是 systemone | 转发 |
-| `POST /v1/systemone`，模型走其它四种协议 | 400，提示对话请求改发对应路径 |
-| `POST /v1/messages`、`/v1/chat/completions`、`/v1/responses` 或 gemini 路径，模型走 systemone | 400，提示决策请求改发 `/v1/systemone` |
+| `/v1/systemone`，模型的有效出站协议是 systemone | 转发 |
+| `/v1/systemone`，模型走其它协议 | 400，提示改用对话路径 |
+| 对话路径，模型走 systemone | 400，提示改用 `/v1/systemone` |
 
-这一类 400 是协议不相通的拒绝，与[跨协议转换](/docs/gateway/conversion#跨协议转换只搬映射表里的字段)不同：决策请求没有消息序列，转换规则无从定义，因此不转换。一个模型只有一种有效出站协议，只接得上相配的那一类请求；两类请求都要发时，各用一个模型名。
+一个模型只有一种有效出站协议。需要同时发对话与决策请求时，各用一个模型名。
 
-接入 decision 模型的供应商配置见[路径与决策模型](/docs/providers/paths#接入决策模型systemone)。
+## 命令行
+
+```bash
+lax model decide --model typesafe/jev --state "材料" \
+    --noul "urgent=是否要求今天处理" \
+    --choice "team=该交给哪个团队" --choice "team:billing=账单,technical=技术" \
+    --score "anger=情绪强度" --score "anger:平静,不满,愤怒"
+```
+
+`--questions` 可以直接给整块 JSON，与逐条拼写互斥。输出表列出问题、类型、答案、概率与置信度；`--json` 原样输出上游的 `answers` 与 `usage`，另加 `model`、`account`、`latency_ms`。
+

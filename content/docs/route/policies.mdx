@@ -1,0 +1,151 @@
+---
+title: 选号策略
+description: priority、rotate、weighted、success 与 softmax 的计算方式与适用场景
+---
+
+`route set` 一次写一整条策略。策略名由 `--strategy` 给出，五种取值。
+
+## 快速对照
+
+| 策略 | 排序依据 | 是否用权重 | 是否用统计 | 适用场景 |
+| --- | --- | --- | --- | --- |
+| `priority` | 账号 `priority` 升序 | 否 | 否 | 主备账号，稳定可预期 |
+| `rotate` | 每次请求轮换起始位置 | 否 | 否 | 多账号平均分摊 |
+| `weighted` | 按权重比例轮转 | 是 | 否 | 按套餐额度分摊 |
+| `success` | 统计窗口内成功率降序 | 否 | 是 | 上游质量差异大 |
+| `softmax` | 优先级、成功率、延迟加权评分后按概率抽 | 是 | 是 | 平滑分流并探索 |
+
+## priority
+
+账号按 `priority` 从小到大排；相同优先级按账号 ID 排。失败后按这个顺序试下一个。
+
+```bash
+lax route set glm-4.6 --strategy priority
+lax account add acct-a --provider myco --key sk-a --priority 10
+lax account add acct-b --provider myco --key sk-b --priority 20
+```
+
+这是内置默认策略。它适合明确的主备关系：先花完主账号的额度，再使用备用账号。
+
+## rotate
+
+每次请求把起始位置向后移动一位，形成比例轮转，不是随机抽取。候选数量变化时，轮转位置按当前候选列表取模。
+
+```bash
+lax route set glm-4.6 --strategy rotate --sticky off
+```
+
+适合账号质量接近、希望平均分摊的情况。默认的 `sticky prefer` 会把同一会话固定到一个账号，从而削弱轮转效果；要真正轮转，通常同时设 `--sticky off`。
+
+## weighted
+
+按账号权重比例排出完整顺序。权重 3:1 的两个账号，在四次请求里约三次把权重 3 的账号排在第一。
+
+```bash
+lax route set glm-4.6 --strategy weighted
+lax route account set acct-a --model glm-4.6 --weight 3
+lax route account set acct-b --model glm-4.6 --weight 1
+```
+
+权重取 1 到 1000 的整数，默认 1。权重只影响 `weighted` 与 `softmax`；`priority`、`rotate`、`success` 不看权重。
+
+## success
+
+按统计窗口内的账号相关成功率降序。成功率相同再按 `priority` 与账号 ID 排序。
+
+```bash
+lax route set glm-4.6 --strategy success --window 7d --min-samples 20
+```
+
+成功率用平滑值计算：
+
+```text
+(成功数 + 0.5 × 最小样本) / (样本数 + 最小样本)
+```
+
+新账号因此落在 0.5 附近，不会因为零样本排到最后。
+
+样本口径：
+
+| 结果 | 是否进入样本 |
+| --- | --- |
+| 2xx | 成功 |
+| 408、429、5xx | 失败 |
+| 连接层失败（请求记录 `http_status=502`） | 失败 |
+| 400、401、403 | 不进入 |
+| 客户端主动断开 | 不进入 |
+
+统计来自 `route_stats` 的分钟桶，启动时清理 30 天以前的数据。
+
+## softmax
+
+先把三个维度算成 0 到 1 的得分，再按权重相加，随后乘账号权重、按温度做 softmax，最后按探索比例保底。
+
+```bash
+lax route set glm-4.6 --strategy softmax \
+    --sticky prefer --temperature 0.1 \
+    --explore 2 \
+    --score-priority 0.4 --score-success 0.5 --score-latency 0.1
+```
+
+评分规则：
+
+| 维度 | 计算 |
+| --- | --- |
+| 优先级 | 在本次候选内归一化，`priority` 越小得分越高 |
+| 成功率 | 使用与 `success` 相同的平滑成功率 |
+| 延迟 | 取窗口内成功请求的平均耗时；10 秒及以上记 0 分；没有成功样本按 0.5 处理 |
+
+综合得分：
+
+```text
+score = (score_priority × 0.4 + score_success × 0.5 + score_latency × 0.1)
+        / (0.4 + 0.5 + 0.1)
+```
+
+三个评分权重会先归一化，因此给 `0.4 / 0.5 / 0.1` 与给 `4 / 5 / 1` 等价。
+
+概率：
+
+```text
+q_i = w_i × exp((score_i - max_score) / temperature)
+p_i = (1 - explore) × q_i / Σq + explore / n
+```
+
+温度越低越集中，越高越分散。`explore` 在命令行按百分比给：`2` 表示 2%。它给每个候选保底概率，避免某个账号永远不被探索。
+
+softmax 用无放回抽样排出完整顺序，因此故障转移顺序也不是固定的。相同数据与相同 `--seed` 会得到相同顺序。
+
+## 会话粘性
+
+`--sticky` 管同一会话是否固定到同一个账号。会话键来自客户端请求头，按候选账号 ID 排序后的列表做哈希，因此候选增减才会改变目标。
+
+| 取值 | 行为 |
+| --- | --- |
+| `prefer` | 有会话键时，把哈希到的账号提到第一位；该账号不可用时按策略顺序继续 |
+| `off` | 完全忽略会话键 |
+| `strict` | 只允许哈希到的账号；它不可用时返回 503，不换号 |
+
+`strict` 适合上游对多轮上下文有强绑定要求的场景，代价是命中冷却时请求直接失败。
+
+## 参数适用范围
+
+| 参数 | 生效策略 |
+| --- | --- |
+| `--sticky` | 全部 |
+| `--temperature` | 仅 `softmax` |
+| `--explore` | 仅 `softmax` |
+| `--score-priority`、`--score-success`、`--score-latency` | 仅 `softmax` |
+| `--window`、`--min-samples` | `success` 与 `softmax` |
+
+给不适用策略的参数不会报错，但也不改变行为。`route show` 会照常显示这些值。
+
+## 窗口与样本上限
+
+`--window` 接受 `90m`、`24h`、`7d`、`2w` 这样的写法，最长 30 天。`--min-samples` 必须为正整数。
+
+## 下一步
+
+- 权重怎么设：[账号权重](/docs/route/weights)
+- 看一次具体选择：[预演选号](/docs/route/explain)
+

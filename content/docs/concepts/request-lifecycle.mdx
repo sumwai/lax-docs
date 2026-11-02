@@ -1,0 +1,88 @@
+---
+title: 请求生命周期
+description: 从入站路径到上游响应，网关每一步做什么
+---
+
+这一页按时间顺序描述一次转发。具体协议字段的映射见[协议转换](/docs/gateway/conversion)，选号算法的细节见[选号策略](/docs/route/policies)。
+
+## 1. 识别入站协议
+
+| 方法 | 路径 | 入站协议 |
+| --- | --- | --- |
+| POST | `/v1/messages` | anthropic |
+| POST | `/v1/chat/completions` | openai-chat |
+| POST | `/v1/responses` | openai-responses |
+| POST | `/v1beta/models/{model}:generateContent` | gemini，非流式 |
+| POST | `/v1beta/models/{model}:streamGenerateContent` | gemini，流式 |
+| POST | `/v1/embeddings` | openai-embeddings |
+| POST | `/v1beta/models/{model}:embedContent` | gemini 向量化 |
+| POST | `/v1/systemone` | systemone |
+| POST | `/v1/audio/speech` | openai-speech |
+| POST | `/v1/audio/transcriptions` | openai-transcriptions |
+
+未知路径返回 404。已知路径只接受 POST，其它方法返回 405 并带 `Allow: POST`。模型清单 `/v1/models` 与 `/v1/models/{id}` 只接受 GET。
+
+## 2. 解析模型名
+
+anthropic、chat、responses、embeddings、speech 与 transcriptions 从请求体或表单里读模型名；gemini 从路径段读；systemone 从请求体读。
+
+读到名字后先查别名，再进入选号。别名解析失败返回 400，错误信息带环或断点位置。
+
+## 3. 读取有效的选号策略
+
+网关按真实模型名查策略快照：先看这个模型的覆盖，再看默认策略，最后看内置默认。快照包含策略、会话粘性、权重、统计窗口与评分权重。
+
+如果策略快照读取失败，网关返回 500，不静默回退到一个隐式顺序。选号策略是数据面的一部分，读不到时做出的选择无法解释。
+
+## 4. 筛候选账号
+
+候选必须同时满足：
+
+- 账号已启用；
+- 账号声明提供该模型；
+- 该账号上的这个模型没有处于冷却。
+
+停用、无该模型与冷却中的账号会被排除，`route explain` 会列出排除原因。
+
+## 5. 排序
+
+按策略把候选排成完整顺序。五种策略：`priority`、`rotate`、`weighted`、`success`、`softmax`。会话粘性只决定第一名是否固定：`prefer` 把会话哈希到的账号提到第一位，`off` 忽略会话键，`strict` 只允许那个账号，不可用时直接返回 503。
+
+## 6. 逐个尝试
+
+对每个候选：
+
+1. 计算有效出站协议；
+2. 按供应商路由拼出上游地址；
+3. 注入凭据头与附加请求头；
+4. 直通或转换请求体；
+5. 发送请求并读取响应。
+
+失败时按失败类型冷却该账号的这个模型，再试下一个候选。成功时清除该账号这个模型的冷却与连续失败次数。
+
+## 7. 返回与记录
+
+- 非流式请求：读取完整上游响应，按入站协议编码后返回。
+- 流式请求：按上游帧转发或解码后重新编码，客户端断开时停止读取上游。
+- 每次尝试写一条 `requests` 记录；选号统计写 `route_stats` 的分钟桶。
+- 请求记录写失败只打警告，不改变已经返回给客户端的响应。
+
+## 失败如何分类
+
+| 来源 | 冷却 | 是否换号 |
+| --- | --- | --- |
+| 429 | 从 500 毫秒起，按连续失败翻倍，上限 30 分钟 | 是 |
+| 上游 5xx | 从 10 秒起，同样翻倍 | 是 |
+| 连接层失败（DNS、拒绝连接、TLS、读超时、无 HTTP 响应） | 从 2 秒起，同样翻倍 | 是 |
+| 401 | 停用账号 | 否 |
+| 403 | 不停用、不冷却 | 否，原样返回 |
+| 400 | 不冷却 | 否 |
+| 客户端主动断开 | 不冷却 | 否 |
+| 已经向客户端写出字节后断流 | 不冷却 | 否 |
+
+冷却按「账号 + 模型」隔离：一个模型被限流，不影响同一账号的其它模型。
+
+## 不等待重试
+
+单次 HTTP 请求内不会等冷却结束再重试同一个账号。候选都试完就返回 503，把重试交给客户端。这样 429 的短冷却不会被一次请求内的重试放大成更长的冷却。
+

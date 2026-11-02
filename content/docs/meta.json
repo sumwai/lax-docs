@@ -1,22 +1,24 @@
 {
-  "title": "文档",
+  "title": "lax 文档",
   "pages": [
     "index",
     "---开始使用---",
-    "install",
-    "quickstart",
+    "start",
+    "---核心概念---",
+    "concepts",
     "---配置---",
-    "providers",
-    "accounts",
-    "models",
-    "---使用---",
+    "configure",
+    "---选号---",
+    "route",
+    "---网关与协议---",
     "gateway",
-    "clients",
-    "usage",
+    "---插件---",
+    "plugins",
+    "---运维---",
+    "operate",
     "---参考---",
-    "cli",
-    "glossary",
-    "faq",
-    "agents"
+    "reference",
+    "---版本---",
+    "releases"
   ]
 }

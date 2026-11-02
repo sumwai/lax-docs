@@ -1,0 +1,6 @@
+{
+  "title": "核心概念",
+  "icon": "Lightbulb",
+  "defaultOpen": true,
+  "pages": ["how-it-works", "models-accounts", "request-lifecycle"]
+}

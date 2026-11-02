@@ -1,7 +1,0 @@
-{
-  "title": "供应商与路由",
-  "icon": "Server",
-  "defaultOpen": true,
-  "collapsible": true,
-  "pages": ["index", "paths", "headers"]
-}

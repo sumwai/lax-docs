@@ -1,0 +1,148 @@
+---
+title: 安装与升级
+description: 本地目录、GitHub 来源、官方插件名、版本固定与回滚
+---
+
+`plugin install` 接受四种来源：本地目录、完整 GitHub 来源、GitHub 短形式和官方插件名。
+
+## 本地目录
+
+```bash
+lax plugin install ./my-plugin --dry-run
+lax plugin install ./my-plugin
+lax plugin install ./my-plugin --no-enable
+```
+
+目录里必须有 `lax.plugin.json`。`--dry-run` 只打印将写入的供应商、路由、模型、方言、别名与权限，不复制文件也不写库。
+
+## GitHub 来源
+
+```bash
+lax plugin install https://github.com/owner/repo/tree/main/plugins/my-plugin
+lax plugin install github.com/owner/repo/plugins/my-plugin
+lax plugin install github.com/owner/repo/plugins/my-plugin@v1.2.0
+```
+
+下载的是有大小上限的归档，解包时拒绝：
+
+- 符号链接与特殊文件；
+- 重复条目；
+- 路径逃逸；
+- 超出大小限制的包。
+
+只接受一个插件目录，不会从仓库根目录推断多个插件。
+
+## 官方插件名
+
+```bash
+lax plugin install doubao-seed-tts
+lax plugin install doubao-seed-tts@1.2.1
+lax plugin install doubao-seed-tts@main
+```
+
+名字只允许字母、数字与 `._-`，不能以 `.` 开头。
+
+| 写法 | 解析 |
+| --- | --- |
+| 无 `@` | 当前目录有同名目录就用本地；否则官方仓库默认分支 |
+| `@<版本>` | 官方仓库 tag `<名字>-v<版本>`；`@1.2.1` 与 `@v1.2.1` 等价 |
+| `@main` 或 `@<提交号>` | 原样作为 ref |
+
+强制取远程最新版时写 `@main`。
+
+## 信任级别
+
+```bash
+lax plugin install ./declarative-plugin
+lax plugin install ./js-plugin --trust sandboxed
+lax plugin install ./js-plugin --trust declarative   # 用法错误
+```
+
+省略 `--trust` 时按 manifest 的 `runtime` 推断。`--trust` 与 `runtime` 不一致属于用法错误，退出码 2。
+
+`plugin update` 没有 `--trust`：新版本按它自己的 runtime 重新推断。
+
+## 安装第二个版本
+
+同一插件装第二个版本会切换活动版本。必须显式确认：
+
+```bash
+lax plugin install ./my-plugin-v2 --yes
+lax plugin update com.example.echo --source ./my-plugin-v2
+lax plugin update com.example.echo --source ./my-plugin-v2 --yes
+```
+
+`update` 不带 `--yes` 时只打印将发生的变化。
+
+## 升级与回滚
+
+```bash
+lax plugin update com.example.echo --source doubao-seed-tts@1.2.1 --yes
+lax plugin update com.example.echo --source github.com/owner/repo/plugins/echo@main --yes
+lax plugin rollback com.example.echo --version 1.0.0
+```
+
+`plugins.active_version` 是唯一活动指针。版本行不可变；升级只新增版本并把指针切过去，回滚只切指针并按那个版本重写供应商目录。
+
+回滚前先看已装版本：
+
+```bash
+lax plugin ls
+lax plugin show com.example.echo
+```
+
+## 校验
+
+```bash
+lax plugin verify com.example.echo
+lax plugin verify --all
+lax plugin doctor
+lax plugin doctor com.example.echo
+```
+
+| 命令 | 检查内容 | 是否启动沙箱 |
+| --- | --- | --- |
+| `verify` | 包哈希、manifest 哈希、运行时、方言声明 | 否 |
+| `doctor` | 包完整性、manifest 哈希、沙箱、导出钩子、方言登记、状态 | 是 |
+
+`verify` 或 `doctor` 有检查未通过时退出码为 1。
+
+## 日志与配置
+
+```bash
+lax plugin logs com.example.echo
+lax plugin logs com.example.echo --level warn --limit 100
+lax plugin logs com.example.echo --follow
+
+lax plugin config get com.example.echo
+lax plugin config get com.example.echo region
+lax plugin config set com.example.echo region cn
+lax plugin config set com.example.echo token --stdin
+lax plugin config unset com.example.echo region
+```
+
+配置项必须在活动版本 manifest 的 `options` 里声明。`get` 没写过的键回落到 `default`；`set` 按声明的 `type` 与 `enum` 校验；`unset` 幂等。
+
+配置值只落库，正在运行的网关要 `plugin reload` 才读取新值。secret 不走这里。
+
+## 启停与删除
+
+```bash
+lax plugin disable com.example.echo
+lax plugin enable com.example.echo
+lax plugin rm com.example.echo
+lax plugin rm com.example.echo --purge
+```
+
+`disable` 后网关不再加载它的方言；正在运行的网关需要重启或 reload 才生效。`rm` 默认保留包目录，`--purge` 一并删除。
+
+删除插件会连带删除它自己的供应商，并停用指向这些供应商的账号。重新安装后账号仍是停用的状态，需要 `account enable`。
+
+## 官方仓库列表
+
+```bash
+lax plugin ls --available
+```
+
+它会联网读取官方仓库默认分支，列出通过校验的插件，并按插件 ID 标出本机已装版本与启停状态。默认的 `plugin ls` 只读本地，不联网。
+

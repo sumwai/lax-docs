@@ -1,0 +1,247 @@
+---
+title: 命令行参考
+description: 全局参数、命令分组、输出约定与退出码
+---
+
+lax 没有交互式界面。除 `serve` 外，所有命令执行完即退出。
+
+## 全局参数
+
+| 参数 | 作用 | 默认 |
+| --- | --- | --- |
+| `--json` | 以 JSON 输出 | 关 |
+| `--config <路径>` | 指定配置文件 | `$XDG_CONFIG_HOME/lax/config.json` |
+| `--db <路径>` | 指定数据库 | `$XDG_DATA_HOME/lax/lax.db` |
+
+`--config` 与 `--db` 必须写在子命令之前。写在之后会报 `flag provided but not defined`。`--json` 可以写在子命令前后任意位置。
+
+## 帮助
+
+```bash
+lax --help
+lax account --help
+lax account add -h
+```
+
+组级帮助列出子命令；子命令级帮助列出参数。`-h`、`--help` 与 `help` 在组级等价；子命令级用 `-h` 或 `--help`。
+
+## 命令一览
+
+| 命令 | 作用 |
+| --- | --- |
+| `init` | 建配置目录、数据库与密钥 |
+| `serve` | 前台启动网关 |
+| `account` | 账号：`add`、`ls`、`set`、`rm`、`test`、`enable`、`disable` |
+| `provider` | 供应商：`ls`、`add`、`set`、`unset`、`rm`、`header` |
+| `model` | 模型：`ls`、`show`、`add`、`sync`、`probe`、`alias`、`price`、`capability`、`dialect`、`call`、`decide`、`speak`、`transcribe` |
+| `route` | 选号：`ls`、`show`、`set`、`unset`、`account`、`explain` |
+| `plugin` | 插件：`install`、`update`、`rollback`、`verify`、`logs`、`reload`、`config`、`ls`、`show`、`enable`、`disable`、`rm`、`doctor` |
+| `usage` | 按账号、模型或日期汇总用量 |
+| `log` | 请求记录：`tail` |
+| `doctor` | 自检配置、目录、密钥、数据库与端口 |
+| `version` | 打印版本 |
+
+## 常用子命令参数
+
+### account add
+
+```text
+lax account add <名称> --provider <供应商> --key <key> [--models <模型>] [--priority N]
+```
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--provider` | 供应商名，必填 | — |
+| `--key` | key；`-` 从标准输入读，留空读 `LAX_KEY` | — |
+| `--models` | 逗号分隔的模型名 | 空 |
+| `--priority` | 优先级，小的先试 | `100` |
+| `--name` | 账号名，也可作为位置参数 | — |
+
+### account set
+
+```text
+lax account set <名称> [--key <key>]
+```
+
+换凭据，不删号。`update` 是同义词。
+
+### provider add / set / unset
+
+```text
+lax provider add <名称> [--base-url <地址>] \
+    [--anthropic <路径>] [--openai <路径>] [--responses <路径>] [--gemini <路径>] \
+    [--systemone <路径>] [--embeddings <路径>] [--speech <路径>] [--transcriptions <路径>] \
+    [--default-protocol <协议>] [--models-path <路径>] \
+    [--auth-header <头名>] [--auth-scheme raw|bearer|bearer-semicolon] [--note <备注>]
+```
+
+```text
+lax provider set <名称> [同上]
+lax provider unset <名称> <字段> [<字段>...]
+lax provider rm <名称> [--force]
+```
+
+`unset` 的字段可以用 `anthropic`、`openai`、`responses`、`gemini`、`systemone`、`embeddings`、`speech`、`transcriptions`、`models-path`、`default-protocol`、`auth-header`、`auth-scheme` 与 `note`。
+
+### provider header
+
+```text
+lax provider header set <供应商> <头名> <值> [--protocol <协议>]
+lax provider header unset <供应商> <头名> [--protocol <协议>]
+lax provider header ls <供应商>
+```
+
+### model sync / probe
+
+```text
+lax model sync [--provider <供应商>] [--account <账号>] [--endpoint <路径>]
+lax model probe [--provider <供应商>] [--account <账号>] [--sync] \
+    [--model <模型>] [--protocol <协议>] [--limit N] [--concurrency N] \
+    [--max-age <时长>] [--refresh]
+```
+
+### model add / show
+
+```text
+lax model add <模型> --account <账号> [--provider <供应商>] [--protocol <协议>]
+lax model show <模型> [--account <账号>] [--provider <供应商>]
+```
+
+### model alias
+
+```text
+lax model alias set <别名> <目标>
+lax model alias unset <别名>
+lax model alias ls
+```
+
+### model price
+
+```text
+lax model price set <模型> [--in N] [--out N] [--cache-read N] [--cache-write N] \
+    [--tts-char N] [--audio-second N] \
+    [--provider <供应商> | --account <账号>]
+lax model price unset <模型> <字段> [<字段>...] [--provider <供应商> | --account <账号>]
+lax model price ls [<模型>] [--account <账号>]
+```
+
+### model capability
+
+```text
+lax model capability add <模型> [--provider <供应商>] \
+    [--capability <能力>]... [--voices <音色,...>] [--audio-formats <格式,...>] [--dialect <方言>]
+lax model capability set <模型> [同上]
+lax model capability unset <模型> [--provider <供应商>] <字段> [<字段>...]
+lax model capability ls [<模型>] [--provider <供应商>]
+```
+
+`unset` 的字段是 `capability`、`voices`、`audio-formats`。
+
+### model dialect
+
+```text
+lax model dialect ls [<模型>] [--provider <供应商>]
+lax model dialect set <模型> <操作> <方言> [--provider <供应商>]
+lax model dialect unset <模型> <操作> [--provider <供应商>]
+```
+
+### model call / decide / speak / transcribe
+
+```text
+lax model call "<提示词>" [--model <模型>] [--protocol anthropic|chat|responses|gemini] \
+    [--stream] [--max-tokens N] [--system <提示词>] [--debug]
+
+lax model decide --model <模型> --state <材料> \
+    (--questions <JSON> | --noul <名=问句> | --choice <名=问句> [--choice <名:选项...>] | --score <名=问句> [--score <名:级别...>])
+
+lax model speak --model <模型> --text <文本> [--voice <音色>] [--format <格式>] [--out <文件>]
+
+lax model transcribe <音频文件|-> --model <模型> [--language auto|zh|en] [--prompt <提示>] \
+    [--format json|text|verbose_json]
+```
+
+### route
+
+```text
+lax route ls
+lax route show <模型> | --default
+lax route set <模型> | --default --strategy <策略> [参数]
+lax route unset <模型> | --default
+lax route account ls [<账号>]
+lax route account set <账号> [--model <模型>] --weight N
+lax route account unset <账号> [--model <模型>]
+lax route explain <模型> [--session <会话键>] [--seed N]
+```
+
+`route set` 参数：
+
+| 参数 | 取值 | 默认 |
+| --- | --- | --- |
+| `--strategy` | `priority`、`rotate`、`weighted`、`success`、`softmax` | 必填 |
+| `--sticky` | `prefer`、`off`、`strict` | `prefer` |
+| `--temperature` | 浮点数 | `0.1` |
+| `--explore` | 百分比，例如 `2` | `2` |
+| `--score-priority` | 浮点数 | `0.4` |
+| `--score-success` | 浮点数 | `0.5` |
+| `--score-latency` | 浮点数 | `0.1` |
+| `--window` | `90m`、`24h`、`7d`、`2w` | `1d` |
+| `--min-samples` | 正整数 | `20` |
+
+### plugin
+
+```text
+lax plugin install <来源> [--trust declarative|sandboxed] [--no-enable] [--dry-run] [--yes]
+lax plugin update <插件 ID> --source <来源> [--dry-run] [--yes]
+lax plugin rollback <插件 ID> --version <版本>
+lax plugin verify [<插件 ID> | --all]
+lax plugin logs <插件 ID> [--level <级别>] [--limit N] [--follow]
+lax plugin reload
+lax plugin config get <插件 ID> [键]
+lax plugin config set <插件 ID> <键> <值> [--stdin]
+lax plugin config unset <插件 ID> <键>
+lax plugin ls [--enabled | --available]
+lax plugin show <插件 ID>
+lax plugin enable <插件 ID>
+lax plugin disable <插件 ID>
+lax plugin rm <插件 ID> [--purge]
+lax plugin doctor [<插件 ID> | --all]
+```
+
+### usage / log
+
+```text
+lax usage [--by account|model|day] [--since <时间> | --from <时间> --to <时间>] \
+    [--account <账号>] [--model <模型>] [--provider <供应商>]
+
+lax log tail [-n N] [--follow]
+```
+
+## 输出约定
+
+- 人读输出到 stdout；
+- `--json` 也输出到 stdout；
+- 错误文本与进度输出到 stderr；
+- 两种输出不混在同一条流里；
+- 空集合输出 `[]`，不是 `null`；
+- 凭据只显示掩码，不输出明文。
+
+## 退出码
+
+| 退出码 | 含义 |
+| --- | --- |
+| `0` | 成功 |
+| `1` | 运行失败：上游错误、同步失败、探活无可用模型、`doctor` 有检查未通过、非 2xx 请求 |
+| `2` | 用法错误：参数缺失、取值非法、未知子命令 |
+
+参数名拼错或参数值无法解析时退出码为 1，是这条规则的例外。
+
+## 示例
+
+```bash
+lax --json account ls
+lax account ls --json
+lax --config ./config.json --db ./lax.db serve
+lax route set glm-4.6 --strategy softmax --temperature 0.05 --explore 1
+lax route explain glm-4.6 --session demo --seed 42 --json
+```
+

@@ -1,0 +1,51 @@
+---
+title: 供 Agent 读取
+description: 文档的 Markdown、llms.txt 与推荐读取方式
+---
+
+文档站为自动读取提供了几个入口。页面内容来自同一个 Markdown 源，不需要解析 HTML。
+
+## 入口
+
+| 地址 | 内容 |
+| --- | --- |
+| `/llms.txt` | 页面索引，每项链接到 Markdown 原文 |
+| `/llms-full.txt` | 全部页面合并 |
+| `<页面>.md` | 单页 Markdown 原文 |
+| 请求头 `Accept: text/markdown` | 同一地址返回 Markdown |
+| `/sitemap.xml` | 页面清单 |
+
+例如：
+
+```bash
+curl -s https://docs.larkax.com/llms.txt
+curl -s https://docs.larkax.com/docs/route/policies.md
+```
+
+## 推荐顺序
+
+让 Agent 回答 lax 的使用问题时：
+
+1. 先读 `/llms.txt`，按标题选择页面；
+2. 读对应页面的 `.md` 原文；
+3. 需要完整上下文时读 `/llms-full.txt`；
+4. 不要用 HTML 页面做正文抽取。
+
+## 事实边界
+
+- 页面只描述当前版本的命令与行为；
+- 版本变化见[版本记录](/docs/releases)；
+- 设计取舍与内部实现不在站点，页面只写可观察的命令、配置与协议行为；
+- 示例输出已脱敏，账号名与 key 是占位。
+
+## 站点自身
+
+站点使用 Fumadocs 构建，支持：
+
+- 侧边栏与站内搜索；
+- 深浅色主题；
+- 页面内的 Markdown 复制；
+- OG 图与 sitemap。
+
+内容仓库只放 Markdown 与 `meta.json`，站点代码在独立仓库。
+

@@ -9,8 +9,16 @@ lax 的公开文档内容。仓库里只有 Markdown / MDX 页面与各级 `meta
 | 路径 | 内容 |
 | --- | --- |
 | `content/docs/meta.json` | 侧边栏一级顺序与分组线 |
-| `content/docs/*.mdx` | 顶层页面：概览、安装、快速开始、客户端接入、用量、术语、常见问题、Agent 入口 |
-| `content/docs/<分组>/` | 分组页面与同级 `meta.json`：供应商与路由、账号、模型、网关与协议、命令行参考 |
+| `content/docs/index.mdx` | 文档首页 |
+| `content/docs/start/` | 安装、快速开始、客户端接入 |
+| `content/docs/concepts/` | 工作原理、账号与模型、请求生命周期 |
+| `content/docs/configure/` | 供应商、账号、模型、价格 |
+| `content/docs/route/` | 选号策略、权重与解释 |
+| `content/docs/gateway/` | 协议、转换、请求头、错误、实时、嵌入、决策、语音 |
+| `content/docs/plugins/` | 插件安装、方言、清单与安全 |
+| `content/docs/operate/` | 用量、日志、诊断、数据与升级 |
+| `content/docs/reference/` | 命令行、术语、常见问题、Agent 入口 |
+| `content/docs/releases/` | 版本说明与变更日志 |
 
 新增页面要同时加同级 `meta.json` 的 `pages` 条目，否则页面能打开但侧边栏里进不去。
 

@@ -1,0 +1,97 @@
+---
+title: 模型定价
+description: 供应商级标价、账号覆盖价与用量花费的估算口径
+---
+
+lax 不扣费，也不连接支付系统。它只按模型单价把请求记录里的 token、字符与音频秒数换算成估算花费。
+
+## 价格存在哪里
+
+价格挂在「供应商 × 模型」上，不在账号上。同一家上游的同一个模型只有一份标价；账号签的是套餐价时，再给这个账号加一份覆盖价。
+
+| 层级 | 存在哪 | 写入 |
+| --- | --- | --- |
+| 供应商级标价 | 模型目录里这家供应商的模型行 | `model price set <模型>` |
+| 账号覆盖价 | 这个账号在这个模型上的行 | `model price set <模型> --account <账号>` |
+
+取值顺序只有一条：账号覆盖价 → 供应商级标价 → 未定价。
+
+## 设置
+
+```bash
+lax model price set glm-4.6 --in 0.6 --out 2.2
+lax model price set glm-4.6 --in 0.6 --out 2.2 --provider bigmodel
+lax model price set glm-4.6 --account ds --out 2.5
+lax model price unset glm-4.6 cache-read
+lax model price unset glm-4.6 --account ds out
+```
+
+| 参数 | 说明 |
+| --- | --- |
+| `--in` | 输入 token 单价，每百万 token |
+| `--out` | 输出 token 单价，每百万 token |
+| `--cache-read` | 缓存读单价 |
+| `--cache-write` | 缓存写单价 |
+| `--provider` | 供应商级标价落在哪家；模型名唯一时不必给 |
+| `--account` | 写这个账号的覆盖价；与 `--provider` 互斥 |
+
+`set` 只写命令行上给过的项，没给的保持原值。六项都不给是用法错误。
+
+语音模型另有按字符与按秒计价的两项：
+
+| 参数 | 说明 |
+| --- | --- |
+| `--tts-char` | 语音合成单价，每百万字符 |
+| `--audio-second` | 语音转写单价，每秒 |
+
+`unset` 的字段是位置参数，可一次写多个；清不到的项不报错。清掉账号覆盖价会回到供应商级标价；清掉供应商级标价后这一项未知。
+
+价格必须是模型目录里已有的行。模型先由 `model sync`、`model probe` 或 `model add` 写进目录；账号覆盖价还要求这个账号在这个模型上有行。
+
+`0` 合法，表示免费或已打包在套餐里。负数是用法错误，退出码 2。
+
+## 查看
+
+```bash
+lax model price ls
+lax model price ls glm-4.6
+lax model price ls glm-4.6 --account ds
+```
+
+给 `--account` 时每个价格格并排显示“目录”与“有效”，有效价就是 `usage` 实际计价用的值。
+
+## 花费怎么算
+
+请求记录里的六类用量分别乘单价，再加总：
+
+| 用量 | 价格字段 | 缺价时 |
+| --- | --- | --- |
+| 输入 token | `in` | 未定价 |
+| 输出 token | `out` | 未定价 |
+| 缓存读 token | `cache-read` | 回退到输入价 |
+| 缓存写 token | `cache-write` | 回退到输入价 |
+| 合成字符 | `tts-char` | 未定价 |
+| 音频秒 | `audio-second` | 未定价 |
+
+思考 token 不单独计价。上游把它报在输出之外时，`usage` 里单独显示；anthropic 把思考算进输出 token 时，输出单价已经覆盖。
+
+## 未定价与免费
+
+两者不是一回事：
+
+| 状态 | 显示 | `cost` 字段 |
+| --- | --- | --- |
+| 未定价 | `未定价` | `null` |
+| 免费 | `0.00` | `0` |
+
+合计时未定价的行不按 0 累加。`usage` 会提示有几行没有单价，并给出补价命令。
+
+## 精度
+
+人读输出按金额自适应：0 写 `0.00`；小于 0.01 写四位小数；其余两位。`--json` 里 `cost` 是数值，不是字符串；整组未定价时为 `null`。
+
+## 下一步
+
+- 看用量汇总：[用量与日志](/docs/operate/usage)
+- 价格字段的完整来源：[模型与账号](/docs/concepts/models-accounts)
+

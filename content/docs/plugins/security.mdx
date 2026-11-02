@@ -1,0 +1,102 @@
+---
+title: 安全模型
+description: 沙箱能做什么、不能做什么，以及信任边界
+---
+
+插件是第三方代码。lax 的默认策略是失败关闭：做不到、读不到或不认识的写法直接报错，不静默降级。
+
+## 两种信任级别
+
+| 级别 | 来源 | 执行 |
+| --- | --- | --- |
+| `declarative` | 只有数据文件 | 不执行代码 |
+| `sandboxed` | `moejs` 运行时 | 进程内 goja 沙箱 |
+
+当前没有 `trusted-worker` 级别，也没有文件、进程与环境变量权限。
+
+## 沙箱能做什么
+
+`moejs` 的 hook 拿到固定 `ctx`，并可调用以下宿主 API：
+
+| API | 用途 |
+| --- | --- |
+| `lax.log([level], message)` | 写日志到 `plugin_logs` 与 serve 输出 |
+| `lax.now()`、`lax.randomUUID()` | 时间与 UUID |
+| `lax.base64.encode\|decode` | Base64 编解码 |
+| `lax.sha256(text)`、`lax.hmacSHA256(text, key)` | 摘要 |
+| `lax.error(code, message, {retryable?, details?})` | 构造错误对象 |
+| `lax.http.request({...})` | 受权限约束的控制面请求 |
+| `lax.cache.get\|set\|delete` | 进程内缓存，按插件隔离 |
+| `URL` | 只解析与格式化，不发请求 |
+
+`console.log`、`console.info`、`console.warn`、`console.error` 也可用。
+
+## 沙箱不能做什么
+
+以下全局对象在加载时被删除：
+
+```text
+fetch          process        require        module
+exports        Bun            child_process  XMLHttpRequest
+WebSocket      fs             global         Buffer
+setTimeout     setInterval
+```
+
+插件读不到文件、进程、环境变量与凭据原文。它能声明接受哪种账号凭据（`api_key` 或 `bearer`），但凭据头仍由宿主按账号注入。
+
+## 网络边界
+
+`lax.http.request` 只在 manifest 声明了 `permissions.network.mode = "host-proxy"` 时可用，并且：
+
+- 只允许 https；
+- 主机按精确名或 `*.example.com` 匹配；
+- 不跟随重定向；
+- 方法只收 GET、POST、PUT、PATCH、DELETE、HEAD；
+- 单次 15 秒，每次 hook 最多 4 次，总共 30 秒；
+- 响应体默认上限 1 MiB。
+
+## 资源上限
+
+| 闸门 | 上限 |
+| --- | --- |
+| 单个 JS 源文件 | 4 MiB |
+| 一个插件的全部源文件 | 8 MiB，最多 64 个文件 |
+| 一次 hook 的返回值 | 8 MiB |
+| 注入的音频、媒体与流块 | 8 MiB，超出置 `truncated` |
+| 一个插件的 `lax.cache` | 1 MiB |
+
+`moejs` 没有内存硬上限。goja 不提供堆上限 API；写坏的插件仍能把进程内存吃高。
+
+## 超时
+
+| hook | 默认 | 上限 |
+| --- | --- | --- |
+| `prepare_request` | 100 ms | 2 s |
+| `decode_response` | 2 s | 30 s |
+| `decode_stream` | 100 ms | 2 s |
+| 加载入口模块 | 2 s | — |
+
+超时通过中断 JS 执行实现。卡在原生 Go 调用（例如 `lax.http.request` 等待上游）时不会立刻返回，因此一个 100 ms 的 hook 可能实际占用几秒。
+
+## 模块边界
+
+插件只支持受限 ESM：
+
+| 支持 | 不支持 |
+| --- | --- |
+| `export function` / `export const` / `export class` | `import *` |
+| `export default` 带 hook 方法的对象 | 裸模块名与 `node:` |
+| 相对路径 `import` | 动态 `import()` |
+| 带扩展名的相对路径 | `export *`、`export { … }` |
+|  | 顶层 `await` |
+
+被导入的模块必须位于插件根目录内，路径不能指向目录。
+
+## 安全建议
+
+- 只从可信来源安装插件；`--trust sandboxed` 是明确确认，不是安全保证。
+- 安装前先 `--dry-run` 看它要写哪些供应商、路由、模型与权限。
+- 插件包目录与数据库在同一数据目录下，备份与搬迁时一起处理。
+- 不要把 secret 写进 `options`；配置项只放非敏感值。
+- 升级前用 `plugin verify` 与 `plugin doctor` 检查包完整性。
+

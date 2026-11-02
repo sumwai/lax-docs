@@ -9,7 +9,7 @@ DOCS_PORT ?= 3000
 # 所以 docs-preview 的两步都带上同一组值。
 export DOCS_SITE_NAME ?= lax
 export DOCS_SITE_TAGLINE ?= 本机上的模型网关
-export DOCS_SITE_DESCRIPTION ?= 多家供应商的 API key 保存在一个本地 SQLite 文件中，客户端只连接一个地址；五种线协议可进可出，其中四条之间可以互相转换，探测、冷却、选号与用量记录都在本机完成。
+export DOCS_SITE_DESCRIPTION ?= 多家供应商的 API key 保存在一个本地 SQLite 文件中，客户端只连接一个地址；八种线协议可进可出，其中四种对话协议之间可以互相转换，探测、冷却、选号与用量记录都在本机完成。
 export DOCS_SITE_LOCALE ?= zh-CN
 
 # 框架的同步脚本按这个变量找到本仓库的内容目录，再复制进它的 content/docs。
