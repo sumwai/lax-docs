@@ -21,10 +21,16 @@
     "self-hosted/plugins",
     "self-hosted/operate",
     "---核心概念---",
-    "concepts",
+    "concepts/how-it-works",
+    "concepts/models-accounts",
+    "concepts/request-lifecycle",
     "---参考---",
-    "reference",
+    "reference/cli",
+    "reference/glossary",
+    "reference/faq",
+    "reference/agents",
     "---版本---",
-    "releases"
+    "!releases/index",
+    "releases/changelog"
   ]
 }
