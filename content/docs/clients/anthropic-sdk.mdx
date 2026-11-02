@@ -1,0 +1,40 @@
+---
+title: Anthropic SDK
+description: 用 Anthropic SDK 的 base URL 与 api key 连接 larkax
+---
+
+Anthropic SDK 使用 anthropic 协议。base URL 不带 `/v1`，SDK 会自己拼 `/v1/messages`。
+
+## 配置
+
+```python
+from anthropic import Anthropic
+
+client = Anthropic(base_url="https://larkax.com", api_key="<token>")
+msg = client.messages.create(
+    model="claude-sonnet",
+    max_tokens=256,
+    messages=[{"role": "user", "content": "hello"}],
+)
+```
+
+| 项 | 值 |
+| --- | --- |
+| `base_url` | `https://larkax.com` |
+| `api_key` | 入口管理员提供的 token |
+| `model` | `/v1/models` 返回的模型名 |
+
+## 验证
+
+```bash
+curl -s https://larkax.com/v1/messages \
+  -H 'x-api-key: <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"deepseek-v4-pro","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}'
+```
+
+## 下一步
+
+- 错误响应形状：[鉴权与错误](/docs/clients/auth)
+- 其他客户端：[客户端接入](/docs/clients)
+- 自部署网关：[网关](/docs/self-hosted/gateway)

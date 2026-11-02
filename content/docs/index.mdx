@@ -43,7 +43,7 @@ curl -s https://larkax.com/v1/chat/completions \
   -d '{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-token 由入口管理员提供。完整步骤见[直接使用](/docs/hosted)，各客户端的 base URL 与请求头见[客户端接入](/docs/hosted/clients)。
+token 由入口管理员提供。完整步骤见[客户端接入](/docs/clients)。
 
 自部署时，先安装并初始化，再添加自己的上游账号、同步并探活模型，最后启动 `lax serve`。步骤见[自部署](/docs/self-hosted)。
 
@@ -51,10 +51,10 @@ token 由入口管理员提供。完整步骤见[直接使用](/docs/hosted)，�
 
 | 想做的事 | 页面 |
 | --- | --- |
-| 直接使用 `larkax.com` | [直接使用](/docs/hosted)、[鉴权与错误](/docs/hosted/auth) |
+| 连接 `larkax.com` | [客户端接入](/docs/clients)、[鉴权与错误](/docs/clients/auth) |
 | 在自己的主机上部署 | [自部署](/docs/self-hosted)、[安装](/docs/self-hosted/install) |
 | 理解供应商、账号、模型与请求的关系 | [工作原理](/docs/concepts/how-it-works) |
-| 接入 Claude Code、Codex、SDK | [客户端接入](/docs/hosted/clients) |
+| 接入 Claude Code、Codex、SDK | [Claude Code](/docs/clients/claude-code)、[Codex](/docs/clients/codex) |
 | 在自己的主机上选号、接插件或查用量 | [自部署](/docs/self-hosted) |
 | 查每个命令的参数 | [命令行参考](/docs/reference/cli) |
 | 看版本改了什么 | [版本记录](/docs/releases) |

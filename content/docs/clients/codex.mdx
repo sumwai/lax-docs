@@ -1,0 +1,48 @@
+---
+title: Codex
+description: 在 Codex 中配置 larkax 的 openai-responses 入口
+---
+
+Codex 使用 openai-responses 协议。base URL 要包含 `/v1`，token 通过环境变量交给 Codex。
+
+## 配置
+
+编辑 `~/.codex/config.toml`：
+
+```toml
+model = "gpt-5.1"
+model_provider = "larkax"
+
+[model_providers.larkax]
+name = "larkax"
+base_url = "https://larkax.com/v1"
+env_key = "LARKAX_API_KEY"
+```
+
+```bash
+export LARKAX_API_KEY=<token>
+codex
+```
+
+| 项 | 值 |
+| --- | --- |
+| `base_url` | `https://larkax.com/v1` |
+| `env_key` | 保存 token 的环境变量名 |
+| `model` | `/v1/models` 返回的模型名 |
+
+`model_provider` 与 `model_providers` 下的键都写成 `larkax`。上游只提供 openai-chat 时，网关会把 responses 请求转到 chat。
+
+## 验证
+
+```bash
+curl -s https://larkax.com/v1/responses \
+  -H 'Authorization: Bearer <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"gpt-5.1","input":"hi"}'
+```
+
+## 下一步
+
+- 其他客户端：[客户端接入](/docs/clients)
+- 协议转换：[协议转换](/docs/self-hosted/gateway/conversion)
+- 排障：[常见问题](/docs/clients/troubleshooting)

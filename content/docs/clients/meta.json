@@ -1,0 +1,6 @@
+{
+  "title": "客户端接入",
+  "icon": "Globe",
+  "defaultOpen": true,
+  "pages": ["index", "claude-code", "codex", "openai-sdk", "anthropic-sdk", "gemini-sdk", "auth", "troubleshooting"]
+}

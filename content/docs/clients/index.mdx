@@ -1,0 +1,64 @@
+---
+title: 客户端接入
+description: 用 token 连接 larkax.com，并按客户端选择配置方式
+---
+
+larkax 的默认入口是 `https://larkax.com`。客户端把 base URL 指向这里，用 token 鉴权，不需要在本机安装或启动网关。
+
+## 取得 token
+
+入口接受三种凭据头，值都是同一个 token：
+
+| 客户端 | 请求头 |
+| --- | --- |
+| OpenAI SDK、Codex、curl | `Authorization: Bearer <token>` |
+| Anthropic SDK、Claude Code | `x-api-key: <token>` 或 `Authorization: Bearer <token>` |
+| Gemini SDK | `x-goog-api-key: <token>` |
+
+token 由网关管理员提供。浏览器直接打开 `https://larkax.com` 时会走 Basic 认证，用管理员给的用户名与密码；API 客户端应使用上面的三种请求头。
+
+## 选择客户端
+
+| 客户端 | 页面 | base URL |
+| --- | --- | --- |
+| Claude Code | [Claude Code](/docs/clients/claude-code) | `https://larkax.com` |
+| Codex | [Codex](/docs/clients/codex) | `https://larkax.com/v1` |
+| OpenAI SDK | [OpenAI SDK](/docs/clients/openai-sdk) | `https://larkax.com/v1` |
+| Anthropic SDK | [Anthropic SDK](/docs/clients/anthropic-sdk) | `https://larkax.com` |
+| Gemini SDK | [Gemini SDK](/docs/clients/gemini-sdk) | `https://larkax.com` |
+
+所有客户端共用同一套地址与鉴权规则，差异只在 base URL 是否包含 `/v1`，以及客户端使用的请求头。
+
+## 发第一条请求
+
+```bash
+curl -s https://larkax.com/v1/chat/completions \
+  -H 'Authorization: Bearer <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"hi"}]}'
+```
+
+模型名由入口管理员配置。不知道有哪些模型时，查询模型清单：
+
+```bash
+curl -s https://larkax.com/v1/models \
+  -H 'Authorization: Bearer <token>'
+```
+
+## 查看入口状态
+
+```bash
+curl -s https://larkax.com/healthz \
+  -H 'Authorization: Bearer <token>'
+```
+
+`healthz` 返回账号、启用账号、模型与协议计数，不探测上游。
+
+## 下一步
+
+| 目标 | 页面 |
+| --- | --- |
+| 看懂三种 token 头与 401 响应 | [鉴权与错误](/docs/clients/auth) |
+| 排查连接失败 | [常见问题](/docs/clients/troubleshooting) |
+| 理解路径与协议 | [线协议](/docs/self-hosted/gateway/protocols) |
+| 在本机运行自己的网关 | [自部署](/docs/self-hosted) |

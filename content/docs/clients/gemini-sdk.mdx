@@ -1,0 +1,40 @@
+---
+title: Gemini SDK
+description: 用 Google Gen AI SDK 或 HTTP 连接 larkax 的 gemini 入口
+---
+
+Gemini SDK 使用 gemini 协议。模型名在 URL 路径里，base URL 指向 `https://larkax.com`。
+
+## 配置
+
+```python
+from google import genai
+
+client = genai.Client(
+    api_key="<token>",
+    http_options={"base_url": "https://larkax.com"},
+)
+resp = client.models.generate_content(
+    model="gemini-2.5-pro",
+    contents="hello",
+)
+```
+
+网关接受原生 `generateContent` 与 `streamGenerateContent` 路径。
+
+## HTTP 示例
+
+客户端不接受自定义 base URL 时，可以直接请求：
+
+```bash
+curl -s https://larkax.com/v1beta/models/gemini-2.5-pro:generateContent \
+  -H 'x-goog-api-key: <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{"contents":[{"parts":[{"text":"hello"}]}]}'
+```
+
+## 下一步
+
+- token 请求头：[鉴权与错误](/docs/clients/auth)
+- 其他客户端：[客户端接入](/docs/clients)
+- 自部署向量化：[向量化](/docs/self-hosted/gateway/embeddings)

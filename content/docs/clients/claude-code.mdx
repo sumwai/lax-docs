@@ -1,0 +1,40 @@
+---
+title: Claude Code
+description: 把 Claude Code 的 Anthropic base URL 与 token 指向 larkax.com
+---
+
+Claude Code 使用 anthropic 协议。把 base URL 指向 larkax，再提供 token，就能通过网关选择上游账号。
+
+## 配置
+
+```bash
+export ANTHROPIC_BASE_URL=https://larkax.com
+export ANTHROPIC_AUTH_TOKEN=<token>
+export ANTHROPIC_MODEL=deepseek-v4-pro
+claude
+```
+
+| 变量 | 值 |
+| --- | --- |
+| `ANTHROPIC_BASE_URL` | `https://larkax.com`，不带 `/v1` |
+| `ANTHROPIC_AUTH_TOKEN` | 入口管理员提供的 token |
+| `ANTHROPIC_MODEL` | `/v1/models` 返回的模型名 |
+
+Claude Code 请求 `/v1/messages`。网关按模型的有效出站协议直通或转换，客户端不需要选择上游协议。
+
+## 验证
+
+```bash
+curl -s https://larkax.com/v1/messages \
+  -H 'x-api-key: <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"deepseek-v4-pro","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}'
+```
+
+能用同一条 token 发出请求后，再启动 Claude Code。`ANTHROPIC_BASE_URL` 多写 `/v1` 会让客户端拼成 `/v1/v1/messages`，通常表现为 404。
+
+## 下一步
+
+- token 与错误响应：[鉴权与错误](/docs/clients/auth)
+- 其他客户端：[客户端接入](/docs/clients)
+- 自部署 env 与网关：[自部署](/docs/self-hosted)

@@ -10,7 +10,7 @@ larkax 的公开文档内容。仓库里只有 Markdown / MDX 页面与各级 `m
 | --- | --- |
 | `content/docs/meta.json` | 侧边栏一级顺序与分组线 |
 | `content/docs/index.mdx` | 文档首页 |
-| `content/docs/hosted/` | 直接使用 larkax.com、客户端接入、鉴权与错误 |
+| `content/docs/clients/` | 客户端接入入口、Claude Code、Codex、各 SDK、鉴权与排障 |
 | `content/docs/self-hosted/` | 自部署入口、安装、首次配置与全部管理页面 |
 | `content/docs/concepts/` | 工作原理、账号与模型、请求生命周期 |
 | `content/docs/self-hosted/configure/` | 供应商、账号、模型、价格 |

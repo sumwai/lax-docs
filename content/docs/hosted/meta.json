@@ -1,6 +1,0 @@
-{
-  "title": "直接使用",
-  "icon": "Globe",
-  "defaultOpen": true,
-  "pages": ["index", "clients", "auth"]
-}

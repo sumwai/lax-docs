@@ -2,8 +2,8 @@
   "title": "larkax 文档",
   "pages": [
     "index",
-    "---直接使用---",
-    "hosted",
+    "---客户端接入---",
+    "clients",
     "---自部署---",
     "self-hosted",
     "---核心概念---",
