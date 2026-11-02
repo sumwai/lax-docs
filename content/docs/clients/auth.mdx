@@ -19,7 +19,7 @@ description: API Key 的放置位置、401 响应形状与常见排查
 
 ## 401 响应
 
-入口按入站路径返回三种错误体，与对应协议的上游错误形状一致。响应文案里的 `token` 指的就是入口发放的 API Key。
+入口按入站路径返回三种错误体，与对应协议的上游错误形状一致。
 
 OpenAI 与其它路径：
 
@@ -27,7 +27,7 @@ OpenAI 与其它路径：
 {
   "error": {
     "code": null,
-    "message": "缺少或错误的凭据：把 api_key 填成 token，按 Authorization: Bearer <token> 发送",
+    "message": "缺少或错误的凭据：把 api_key 填成 API Key（密钥），按 Authorization: Bearer <API Key> 发送",
     "param": null,
     "type": "invalid_request_error"
   }
@@ -41,7 +41,7 @@ Anthropic：
   "type": "error",
   "error": {
     "type": "authentication_error",
-    "message": "缺少或错误的凭据：把 api_key 填成 token，按 x-api-key: <token> 或 Authorization: Bearer <token> 发送"
+    "message": "缺少或错误的凭据：把 api_key 填成 API Key（密钥），按 x-api-key: <API Key> 或 Authorization: Bearer <API Key> 发送"
   }
 }
 ```
@@ -52,7 +52,7 @@ Gemini：
 {
   "error": {
     "code": 401,
-    "message": "缺少或错误的凭据：把 api_key 填成 token，按 x-goog-api-key: <token> 发送",
+    "message": "缺少或错误的凭据：把 api_key 填成 API Key（密钥），按 x-goog-api-key: <API Key> 发送",
     "status": "UNAUTHENTICATED"
   }
 }
