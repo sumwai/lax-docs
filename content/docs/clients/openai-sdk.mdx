@@ -3,14 +3,14 @@ title: OpenAI SDK
 description: 用 Python 或 Node.js 的 OpenAI SDK 连接 larkax
 ---
 
-OpenAI SDK 使用 openai-chat 协议。把 base URL 指向 `https://larkax.com/v1`，api key 填入口 token。
+OpenAI SDK 使用 openai-chat 协议。把 base URL 指向 `https://larkax.com/v1`，api key 填入口 API Key。
 
 ## Python
 
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="https://larkax.com/v1", api_key="<token>")
+client = OpenAI(base_url="https://larkax.com/v1", api_key="<API Key>")
 resp = client.chat.completions.create(
     model="deepseek-v4-pro",
     messages=[{"role": "user", "content": "hello"}],
@@ -23,7 +23,7 @@ print(resp.choices[0].message.content)
 ```js
 import OpenAI from "openai";
 
-const client = new OpenAI({ baseURL: "https://larkax.com/v1", apiKey: "<token>" });
+const client = new OpenAI({ baseURL: "https://larkax.com/v1", apiKey: "<API Key>" });
 const resp = await client.chat.completions.create({
   model: "deepseek-v4-pro",
   messages: [{ role: "user", content: "hello" }],
@@ -36,13 +36,13 @@ OpenAI SDK 会自己拼接 `/chat/completions`，因此 base URL 要包含 `/v1`
 
 ```bash
 curl -s https://larkax.com/v1/chat/completions \
-  -H 'Authorization: Bearer <token>' \
+  -H 'Authorization: Bearer <API Key>' \
   -H 'Content-Type: application/json' \
   -d '{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"hi"}]}'
 ```
 
 ## 下一步
 
-- token 与 401：[鉴权与错误](/docs/clients/auth)
+- API Key 与 401：[鉴权与错误](/docs/clients/auth)
 - 其他客户端：[客户端接入](/docs/clients)
 - 模型清单：[客户端接入](/docs/clients)

@@ -25,7 +25,7 @@ lax serve --addr 127.0.0.1:9000
 
 ## 监听地址
 
-默认只绑回环地址。直接使用 `https://larkax.com` 时，入口已加 Bearer token 鉴权与 TLS；自部署直接暴露本机端口时没有这层保护。需要跨机访问时：
+默认只绑回环地址。直接使用 `https://larkax.com` 时，入口已加 Bearer API Key 鉴权与 TLS；自部署直接暴露本机端口时没有这层保护。需要跨机访问时：
 
 - 放在 SSH 隧道、Tailscale 或内网之后；
 - 或在前面加一层反向代理，由代理做 TLS 与认证。

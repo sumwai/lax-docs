@@ -3,14 +3,14 @@ title: 公开入口
 description: 使用 https://larkax.com 之前的准备、调用方式、错误处理与数据边界
 ---
 
-`https://larkax.com` 是已经部署好的 larkax 入口。使用它不需要安装 lax，也不需要管理上游账号；向入口管理员取得 token 后，把客户端的 base URL 指向这里即可。
+`https://larkax.com` 是已经部署好的 larkax 入口。使用它不需要安装 lax，也不需要管理上游账号；向入口管理员取得 API Key（密钥）后，把客户端的 base URL 指向这里即可。
 
 ## 适用范围
 
 | 项 | 说明 |
 | --- | --- |
 | 入口地址 | `https://larkax.com` |
-| 身份 | 管理员发放的 token；没有自助注册与网页控制台 |
+| 身份 | 管理员发放的 API Key；没有自助注册与网页控制台 |
 | 模型 | 以 `GET /v1/models` 的返回为准，由管理员配置与探活 |
 | 协议 | anthropic、openai-chat、openai-responses、gemini，以及向量化、决策与语音入口 |
 | 计费 | 入口本身没有余额、充值或配额页面；费用与使用范围由管理员约定 |
@@ -20,7 +20,7 @@ description: 使用 https://larkax.com 之前的准备、调用方式、错误�
 
 | 目标 | 页面 |
 | --- | --- |
-| 取得 token，发出第一条请求 | [快速开始](/docs/public/quickstart) |
+| 取得 API Key，发出第一条请求 | [快速开始](/docs/public/quickstart) |
 | 在自己的代码或客户端里调用 | [使用方式](/docs/public/usage) |
 | 看懂 401、404、429、503 | [错误与限制](/docs/public/errors) |
 | 了解入口保存哪些数据 | [数据与隐私](/docs/public/privacy) |
@@ -30,19 +30,19 @@ description: 使用 https://larkax.com 之前的准备、调用方式、错误�
 ## 一次请求会经过什么
 
 ```text
-客户端 ── token ──→ https://larkax.com
-                         │ 入口校验 token
+客户端 ── API Key ──→ https://larkax.com
+                         │ 入口校验 API Key
                          │ 按模型名挑选可用账号
                          │ 按需转换协议
                          ▼
                     上游供应商
 ```
 
-同一套 token 和入口可以同时服务 Claude Code、Codex、OpenAI SDK、Anthropic SDK 与 Gemini SDK。客户端之间的差异只在 base URL 是否包含 `/v1`，以及凭据放在哪个请求头。
+同一套 API Key 和入口可以同时服务 Claude Code、Codex、OpenAI SDK、Anthropic SDK 与 Gemini SDK。客户端之间的差异只在 base URL 是否包含 `/v1`，以及 API Key 放在哪个请求头。
 
 ## 不应该用它做什么
 
-- 不要把 token 提交到公开仓库、写进前端代码或放进 URL 查询参数。
+- 不要把 API Key 提交到公开仓库、写进前端代码或放进 URL 查询参数。
 - 不要假设某个模型永远在线；可用模型与账号会变化，调用前以模型清单为准。
 - 不要把它当成多租户平台；入口没有按用户隔离数据、配额或账单的能力。
 - 不要用入口保存对话记录或文件；它只转发请求，不提供存储服务。

@@ -18,7 +18,7 @@ Gemini SDK ──┘                             供应商 B / 账号 B1
 
 | 特性 | 说明 |
 | --- | --- |
-| 默认入口 | 客户端连接 `https://larkax.com`，用 Bearer token 鉴权 |
+| 默认入口 | 客户端连接 `https://larkax.com`，用 Bearer API Key 鉴权 |
 | 多协议 | 八条线协议：anthropic、openai-chat、openai-responses、gemini、systemone、openai-embeddings、openai-speech、openai-transcriptions |
 | 协议转换 | 四条对话协议任意进入、任意出站，共十六种组合；流式、工具调用与思考内容都在转换范围内 |
 | 账号池 | 同一供应商可加多个账号，按主备、轮转、权重、成功率或 softmax 选号 |
@@ -38,12 +38,12 @@ Gemini SDK ──┘                             供应商 B / 账号 B1
 
 ```bash
 curl -s https://larkax.com/v1/chat/completions \
-  -H 'Authorization: Bearer <token>' \
+  -H 'Authorization: Bearer <API Key>' \
   -H 'Content-Type: application/json' \
   -d '{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-token 由入口管理员提供。完整步骤见[客户端接入](/docs/clients)。
+API Key 由入口管理员提供。第一次使用先看[公开入口快速开始](/docs/public/quickstart)，各客户端的配置见[客户端接入](/docs/clients)。
 
 自部署时，先安装并初始化，再添加自己的上游账号、同步并探活模型，最后启动 `lax serve`。步骤见[自部署](/docs/self-hosted)。
 

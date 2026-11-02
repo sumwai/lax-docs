@@ -1,23 +1,23 @@
 ---
 title: 快速开始
-description: 用管理员发放的 token 查询模型并发出第一条请求
+description: 用管理员发放的 API Key 查询模型并发出第一条请求
 ---
 
-开始前需要两样东西：入口地址 `https://larkax.com`，以及管理员发放的 token。下面的命令把 token 放进环境变量，避免在命令历史里反复出现。
+开始前需要两样东西：入口地址 `https://larkax.com`，以及管理员发放的 API Key（密钥）。下面的命令把 API Key 放进环境变量，避免在命令历史里反复出现。
 
-## 1. 设置 token
+## 1. 设置 API Key
 
 ```bash
-export LARKAX_TOKEN='<token>'
+export LARKAX_API_KEY='<API Key>'
 ```
 
-token 是一整串由管理员提供的值，不需要加 `Bearer ` 前缀。下面的请求会自己补上。
+API Key 是一整串由管理员提供的值，不需要加 `Bearer ` 前缀。下面的请求会自己补上。
 
 ## 2. 查询可用模型
 
 ```bash
 curl -s https://larkax.com/v1/models \
-  -H "Authorization: Bearer $LARKAX_TOKEN"
+  -H "Authorization: Bearer $LARKAX_API_KEY"
 ```
 
 返回里的 `data[].id` 就是请求时填写的模型名。清单只列出启用账号声明可用的模型；冷却中的模型仍会出现，真正调用时可能返回 503。
@@ -40,7 +40,7 @@ curl -s https://larkax.com/v1/models \
 
 ```bash
 curl -s https://larkax.com/v1/chat/completions \
-  -H "Authorization: Bearer $LARKAX_TOKEN" \
+  -H "Authorization: Bearer $LARKAX_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
     "model": "deepseek-v4-pro",
@@ -48,20 +48,20 @@ curl -s https://larkax.com/v1/chat/completions \
   }'
 ```
 
-把返回里的 `choices[0].message.content` 取出来就是回答。第一次请求建议用非流式，确认 token、base URL 与模型名都正确，再打开流式。
+把返回里的 `choices[0].message.content` 取出来就是回答。第一次请求建议用非流式，确认 API Key、base URL 与模型名都正确，再打开流式。
 
 ## 4. 检查入口状态
 
 ```bash
 curl -s https://larkax.com/healthz \
-  -H "Authorization: Bearer $LARKAX_TOKEN"
+  -H "Authorization: Bearer $LARKAX_API_KEY"
 ```
 
 `healthz` 返回账号、启用账号、模型与协议计数。它只表示入口进程与数据库可读，不探测上游，也不代表某个模型现在一定能成功调用。
 
 ## 常见配置对照
 
-| 客户端 | base URL | token 位置 |
+| 客户端 | base URL | API Key 位置 |
 | --- | --- | --- |
 | Claude Code | `https://larkax.com` | `ANTHROPIC_AUTH_TOKEN` |
 | Codex | `https://larkax.com/v1` | 环境变量 `LARKAX_API_KEY`，由 `env_key` 指定 |

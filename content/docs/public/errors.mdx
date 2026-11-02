@@ -3,14 +3,14 @@ title: 错误与限制
 description: 公开入口的状态码、请求体上限、重试方式与服务边界
 ---
 
-入口尽量用状态码说明问题出在哪一层。先看状态码，再检查 token、路径与模型名，通常就能定位。
+入口尽量用状态码说明问题出在哪一层。先看状态码，再检查 API Key、路径与模型名，通常就能定位。
 
 ## 状态码
 
 | 状态 | 含义 | 下一步 |
 | --- | --- | --- |
 | 400 | 请求不合法：模型名、协议字段或路径参数有问题 | 按错误文案修改请求，不要原样重试 |
-| 401 | token 缺失、错误，或没有放在当前协议使用的头里 | 检查 token 与请求头 |
+| 401 | API Key 缺失、错误，或没有放在当前协议使用的头里 | 检查 API Key 与请求头 |
 | 403 | 上游拒绝权限或套餐 | 模型或账号没有权限，联系入口管理员 |
 | 404 | 模型名不在清单，或路径不存在 | 用 `/v1/models` 核对模型名与路径 |
 | 405 | 路径存在但方法不对 | 对话路径用 `POST`，模型清单用 `GET` |
@@ -26,11 +26,11 @@ description: 公开入口的状态码、请求体上限、重试方式与服务�
 
 | 客户端 | 正确写法 |
 | --- | --- |
-| OpenAI SDK、Codex、curl | `Authorization: Bearer <token>` |
-| Claude Code、Anthropic SDK | `x-api-key: <token>` 或 `Authorization: Bearer <token>` |
-| Gemini SDK | `x-goog-api-key: <token>` |
+| OpenAI SDK、Codex、curl | `Authorization: Bearer <API Key>` |
+| Claude Code、Anthropic SDK | `x-api-key: <API Key>` 或 `Authorization: Bearer <API Key>` |
+| Gemini SDK | `x-goog-api-key: <API Key>` |
 
-同一个 token 可以放在三种头里，但不要写进 URL 查询参数。浏览器直接打开 `https://larkax.com` 时走 Basic 认证，用户名与密码由管理员提供，和 API token 不是同一种凭据。
+同一个 API Key 可以放在三种头里，但不要写进 URL 查询参数。浏览器直接打开 `https://larkax.com` 时走 Basic 认证，用户名与密码由管理员提供，和 API Key 不是同一种凭据。
 
 ## 请求体上限
 
@@ -55,10 +55,10 @@ description: 公开入口的状态码、请求体上限、重试方式与服务�
 
 | 功能 | 现状 |
 | --- | --- |
-| 自助注册、登录、控制台 | 不提供，token 由管理员发放 |
+| 自助注册、登录、控制台 | 不提供，API Key 由管理员发放 |
 | 余额、充值、按用户配额页面 | 不提供，入口本身没有多租户计费 |
 | 对话或文件存储 | 不提供，只转发请求 |
-| 订阅账号 OAuth 登录 | 不支持，只接受 API key 形式的 token |
+| 订阅账号 OAuth 登录 | 不支持，只接受 API Key |
 | 按用户隔离日志 | 不提供，管理员能看到入口的请求记录 |
 
 ## 下一步

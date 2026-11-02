@@ -1,25 +1,25 @@
 ---
 title: 鉴权与错误
-description: token 的放置位置、401 响应形状与常见排查
+description: API Key 的放置位置、401 响应形状与常见排查
 ---
 
 `https://larkax.com` 在网关前面做入口鉴权。网关本身不校验入站凭据，鉴权失败由入口直接返回，不会进入选号与转发。
 
 ## 三种请求头
 
-同一个 token 可以放在三种头里，按客户端习惯选择：
+同一个 API Key 可以放在三种头里，按客户端习惯选择：
 
 | 头 | 适合 |
 | --- | --- |
-| `Authorization: Bearer <token>` | OpenAI SDK、Codex、curl |
-| `x-api-key: <token>` | Anthropic SDK、Claude Code |
-| `x-goog-api-key: <token>` | Gemini SDK 与兼容客户端 |
+| `Authorization: Bearer <API Key>` | OpenAI SDK、Codex、curl |
+| `x-api-key: <API Key>` | Anthropic SDK、Claude Code |
+| `x-goog-api-key: <API Key>` | Gemini SDK 与兼容客户端 |
 
-三者任一匹配即放行。不要把 token 写进 URL 查询参数。
+三者任一匹配即放行。不要把 API Key 写进 URL 查询参数。
 
 ## 401 响应
 
-入口按入站路径返回三种错误体，与对应协议的上游错误形状一致。
+入口按入站路径返回三种错误体，与对应协议的上游错误形状一致。响应文案里的 `token` 指的就是入口发放的 API Key。
 
 OpenAI 与其它路径：
 
@@ -62,7 +62,7 @@ Gemini：
 
 | 现象 | 检查 |
 | --- | --- |
-| 401 | token 是否完整、是否放进了当前客户端使用的那一种头 |
+| 401 | API Key 是否完整、是否放进了当前客户端使用的那一种头 |
 | 404 | 路径是否多了或少了 `/v1`，模型名是否在 `/v1/models` 里 |
 | 503 | 入口正常，但网关没有可用候选账号；联系管理员查看冷却与账号状态 |
 

@@ -23,7 +23,7 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="https://larkax.com/v1",
-    api_key="<token>",
+    api_key="<API Key>",
 )
 
 resp = client.chat.completions.create(
@@ -42,7 +42,7 @@ from anthropic import Anthropic
 
 client = Anthropic(
     base_url="https://larkax.com",
-    api_key="<token>",
+    api_key="<API Key>",
 )
 
 msg = client.messages.create(
@@ -60,7 +60,7 @@ Anthropic SDK 的 base URL 不带 `/v1`，SDK 会拼成 `/v1/messages`。`max_to
 
 ```bash
 curl -N https://larkax.com/v1/chat/completions \
-  -H "Authorization: Bearer $LARKAX_TOKEN" \
+  -H "Authorization: Bearer $LARKAX_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
     "model": "deepseek-v4-pro",

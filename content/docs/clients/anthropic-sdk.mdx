@@ -10,7 +10,7 @@ Anthropic SDK 使用 anthropic 协议。base URL 不带 `/v1`，SDK 会自己拼
 ```python
 from anthropic import Anthropic
 
-client = Anthropic(base_url="https://larkax.com", api_key="<token>")
+client = Anthropic(base_url="https://larkax.com", api_key="<API Key>")
 msg = client.messages.create(
     model="claude-sonnet",
     max_tokens=256,
@@ -21,14 +21,14 @@ msg = client.messages.create(
 | 项 | 值 |
 | --- | --- |
 | `base_url` | `https://larkax.com` |
-| `api_key` | 入口管理员提供的 token |
+| `api_key` | 入口管理员提供的 API Key |
 | `model` | `/v1/models` 返回的模型名 |
 
 ## 验证
 
 ```bash
 curl -s https://larkax.com/v1/messages \
-  -H 'x-api-key: <token>' \
+  -H 'x-api-key: <API Key>' \
   -H 'Content-Type: application/json' \
   -d '{"model":"deepseek-v4-pro","max_tokens":16,"messages":[{"role":"user","content":"hi"}]}'
 ```
