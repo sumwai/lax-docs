@@ -1,0 +1,47 @@
+---
+title: 自部署
+description: 在自己的主机上运行 larkax，管理上游账号与入口
+---
+
+自部署是在自己的主机上运行 larkax 网关。客户端连接自己的入口，账号、模型、选号策略与请求记录都保存在自己的数据目录。
+
+## 适用场景
+
+| 场景 | 说明 |
+| --- | --- |
+| 数据与密钥留在自己的机器 | 上游凭据加密后存入本地数据库 |
+| 接入自己的上游账号 | 用 `account add` 添加，按账号池选号 |
+| 自定义入口与鉴权 | 自己在前面加反向代理、TLS 与认证 |
+| 接入特殊上游 | 用插件描述自定义报文形状 |
+
+## 最短路径
+
+```bash
+make build                                             # 生成单文件 ./lax
+./lax init                                             # 配置、数据库、密钥
+./lax account add ds --provider deepseek --key sk-xxx  # 添加一个账号
+./lax model sync --account ds                          # 拉上游模型清单
+./lax model probe --account ds                         # 探活，只有通过的进入选号
+./lax serve                                            # 前台启动网关
+```
+
+客户端连接本机默认地址 `http://127.0.0.1:4567`。对外提供服务时，在前面加 TLS 与认证，或使用[直接使用 larkax.com](/docs/hosted)。
+
+## 自部署与直接使用
+
+| 项 | 直接使用 `larkax.com` | 自部署 |
+| --- | --- | --- |
+| 安装 | 不需要 | 下载发布包或从源码构建 |
+| 凭据 | 向管理员取得 token | 添加自己的上游账号 |
+| 数据 | 由入口管理 | 保存在自己的数据目录 |
+| 升级 | 由入口维护 | 自己替换二进制并重启 |
+| 适用 | 快速接入 | 自己控制账号、数据与部署 |
+
+## 继续读
+
+| 目标 | 页面 |
+| --- | --- |
+| 安装并初始化 | [安装](/docs/self-hosted/install) |
+| 添加账号并发出第一条请求 | [首次配置](/docs/self-hosted/quickstart) |
+| 配置供应商、账号与模型 | [配置](/docs/self-hosted/configure/providers) |
+| 启动与协议 | [网关](/docs/self-hosted/gateway) |

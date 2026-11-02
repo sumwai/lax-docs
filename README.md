@@ -1,6 +1,6 @@
-# lax-docs
+# larkax-docs
 
-lax 的公开文档内容。仓库里只有 Markdown / MDX 页面与各级 `meta.json`，没有站点代码、依赖清单与样式：渲染、搜索、Markdown 原文、`llms.txt` 与 OG 图都由框架仓库提供。
+larkax 的公开文档内容。仓库里只有 Markdown / MDX 页面与各级 `meta.json`，没有站点代码、依赖清单与样式：渲染、搜索、Markdown 原文、`llms.txt` 与 OG 图都由框架仓库提供。
 
 框架是同级目录下的 `docs-site`，构建前由框架的 `scripts/fetch-content.mjs` 把 `content/docs` 同步进去。
 
@@ -10,13 +10,14 @@ lax 的公开文档内容。仓库里只有 Markdown / MDX 页面与各级 `meta
 | --- | --- |
 | `content/docs/meta.json` | 侧边栏一级顺序与分组线 |
 | `content/docs/index.mdx` | 文档首页 |
-| `content/docs/start/` | 安装、快速开始、客户端接入 |
+| `content/docs/hosted/` | 直接使用 larkax.com、客户端接入、鉴权与错误 |
+| `content/docs/self-hosted/` | 自部署入口、安装、首次配置与全部管理页面 |
 | `content/docs/concepts/` | 工作原理、账号与模型、请求生命周期 |
-| `content/docs/configure/` | 供应商、账号、模型、价格 |
-| `content/docs/route/` | 选号策略、权重与解释 |
-| `content/docs/gateway/` | 协议、转换、请求头、错误、实时、嵌入、决策、语音 |
-| `content/docs/plugins/` | 插件安装、方言、清单与安全 |
-| `content/docs/operate/` | 用量、日志、诊断、数据与升级 |
+| `content/docs/self-hosted/configure/` | 供应商、账号、模型、价格 |
+| `content/docs/self-hosted/route/` | 选号策略、权重与解释 |
+| `content/docs/self-hosted/gateway/` | 协议、转换、请求头、错误、实时、嵌入、决策、语音 |
+| `content/docs/self-hosted/plugins/` | 插件安装、方言、清单与安全 |
+| `content/docs/self-hosted/operate/` | 用量、日志、诊断、数据与升级 |
 | `content/docs/reference/` | 命令行、术语、常见问题、Agent 入口 |
 | `content/docs/releases/` | 版本说明与变更日志 |
 
@@ -49,4 +50,4 @@ make docs-preview  # 构建后以生产模式启动
 
 ## 部署
 
-站点构建、镜像与反向代理的说明在框架仓库的 `README.md`。远程拉取内容时用 `DOCS_CONTENT_REPO=<owner>/lax-docs` 指向本仓库，`DOCS_CONTENT_REF` 写 tag 固定版本。
+站点构建与发布说明在框架仓库的 `README.md`。远程拉取内容时用 `DOCS_CONTENT_REPO=<owner>/larkax-docs` 指向本仓库，`DOCS_CONTENT_REF` 写 tag 固定版本。

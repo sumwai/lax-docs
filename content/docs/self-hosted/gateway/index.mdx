@@ -3,7 +3,7 @@ title: 网关
 description: 启动、监听、只读接口与八条入站协议
 ---
 
-网关是 lax 的数据面。它按模型名选账号，按需转换协议，记录每次尝试，然后把响应交还给客户端。
+网关是 larkax 的数据面。它按模型名选账号，按需转换协议，记录每次尝试，然后把响应交还给客户端。
 
 ## 启动
 
@@ -25,7 +25,7 @@ lax serve --addr 127.0.0.1:9000
 
 ## 监听地址
 
-默认只绑回环地址。网关不校验入站凭据，因此不要直接把端口暴露到公网。需要跨机访问时：
+默认只绑回环地址。直接使用 `https://larkax.com` 时，入口已加 Bearer token 鉴权与 TLS；自部署直接暴露本机端口时没有这层保护。需要跨机访问时：
 
 - 放在 SSH 隧道、Tailscale 或内网之后；
 - 或在前面加一层反向代理，由代理做 TLS 与认证。
@@ -98,18 +98,18 @@ curl -s http://127.0.0.1:4567/healthz
 | 有账号提供该模型但本次全都失败 | 503 |
 | 选号策略读取失败、数据库错误 | 500 |
 
-错误体按入站协议给形状，见[错误响应](/docs/gateway/errors)。
+错误体按入站协议给形状，见[错误响应](/docs/self-hosted/gateway/errors)。
 
 ## 协议页面
 
 | 主题 | 页面 |
 | --- | --- |
-| 入站协议细节与模型名位置 | [线协议](/docs/gateway/protocols) |
-| 直通与跨协议转换 | [协议转换](/docs/gateway/conversion) |
-| 客户端头透传与供应商附加头 | [请求头](/docs/gateway/headers) |
-| 各协议的错误形状 | [错误响应](/docs/gateway/errors) |
-| 流式行为与客户端断开 | [流式与断开](/docs/gateway/realtime) |
-| 向量化 | [向量化](/docs/gateway/embeddings) |
-| 决策请求 | [决策请求](/docs/gateway/decision) |
-| 语音合成与转写 | [语音](/docs/gateway/speech) |
+| 入站协议细节与模型名位置 | [线协议](/docs/self-hosted/gateway/protocols) |
+| 直通与跨协议转换 | [协议转换](/docs/self-hosted/gateway/conversion) |
+| 客户端头透传与供应商附加头 | [请求头](/docs/self-hosted/gateway/headers) |
+| 各协议的错误形状 | [错误响应](/docs/self-hosted/gateway/errors) |
+| 流式行为与客户端断开 | [流式与断开](/docs/self-hosted/gateway/realtime) |
+| 向量化 | [向量化](/docs/self-hosted/gateway/embeddings) |
+| 决策请求 | [决策请求](/docs/self-hosted/gateway/decision) |
+| 语音合成与转写 | [语音](/docs/self-hosted/gateway/speech) |
 

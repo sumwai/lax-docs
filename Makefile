@@ -7,9 +7,9 @@ DOCS_PORT ?= 3000
 # 品牌与语言通过环境变量交给框架，本仓库不放站点代码与站点配置。
 # 构建时决定页面文案，start 时 robots.txt 与 llms.txt 还要再读一次，
 # 所以 docs-preview 的两步都带上同一组值。
-export DOCS_SITE_NAME ?= lax
-export DOCS_SITE_TAGLINE ?= 本机上的模型网关
-export DOCS_SITE_DESCRIPTION ?= 多家供应商的 API key 保存在一个本地 SQLite 文件中，客户端只连接一个地址；八种线协议可进可出，其中四种对话协议之间可以互相转换，探测、冷却、选号与用量记录都在本机完成。
+export DOCS_SITE_NAME ?= larkax
+export DOCS_SITE_TAGLINE ?= 默认入口 larkax.com，也可以自部署
+export DOCS_SITE_DESCRIPTION ?= 客户端把 Claude Code、Codex、OpenAI、Anthropic 与 Gemini SDK 指向同一个地址；八种线协议可进可出，其中四种对话协议之间可以互相转换。默认使用 larkax.com，也可以在自己的主机上部署同一套网关。
 export DOCS_SITE_LOCALE ?= zh-CN
 
 # 框架的同步脚本按这个变量找到本仓库的内容目录，再复制进它的 content/docs。

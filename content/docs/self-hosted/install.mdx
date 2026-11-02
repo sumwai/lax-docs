@@ -3,13 +3,13 @@ title: 安装
 description: 获取单文件二进制、初始化配置与确认本机环境
 ---
 
-lax 是单个 Go 二进制，不需要 cgo、Node.js 或外部数据库。SQLite 是缺省后端，数据库文件就是普通本地文件。
+larkax 以单个 Go 二进制发布，命令名是 `lax`。不需要 cgo、Node.js 或外部数据库；SQLite 是缺省后端，数据库文件就是普通本地文件。
 
 ## 两种安装方式
 
 | 方式 | 适合 | 命令 |
 | --- | --- | --- |
-| 下载发布包 | 直接使用 | 从 [GitHub Releases](https://github.com/sumwai/lax/releases) 下载对应平台包，解压后把 `lax` 放进 `PATH` |
+| 下载发布包 | 自部署 | 从 [GitHub Releases](https://github.com/sumwai/lax/releases) 下载对应平台包，解压后把 `lax` 放进 `PATH` |
 | 从源码构建 | 开发或修改 | `make build`，产物是仓库根目录下的 `./lax` |
 
 发布包覆盖 Linux 与 macOS 的 amd64、arm64。Windows 不在发布范围：`serve` 与 `plugin reload` 依赖 Unix 信号。
@@ -94,5 +94,5 @@ lax doctor
 
 ## 下一步
 
-初始化完成后，先加一个账号并拉一次模型清单：[快速开始](/docs/start/quickstart)。
+初始化完成后，先加一个账号并拉一次模型清单：[首次配置](/docs/self-hosted/quickstart)。
 

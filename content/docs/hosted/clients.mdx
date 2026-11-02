@@ -3,18 +3,18 @@ title: 客户端接入
 description: Claude Code、Codex、OpenAI SDK、Anthropic SDK 与 Gemini SDK 的配置方式
 ---
 
-所有客户端都连接同一个网关地址。lax 不修改客户端自己的配置文件；需要手动把 base URL、鉴权头与模型名指过来。
+所有客户端都连接同一个网关地址。larkax 不修改客户端自己的配置文件；需要手动把 base URL、鉴权头与模型名指过来。
 
 ## 地址与鉴权
 
 | 项目 | 值 |
 | --- | --- |
-| 网关地址 | `http://127.0.0.1:4567`（缺省） |
-| 鉴权 | 本机网关不校验入站凭据 |
-| 客户端 key | 任意非空字符串，例如 `lax-local` |
-| 模型名 | 必须是探活通过的模型名，见 `lax model ls` |
+| 网关地址 | `https://larkax.com` |
+| 鉴权 | `Authorization: Bearer <token>`、`x-api-key: <token>` 或 `x-goog-api-key: <token>` |
+| 客户端 key | 向网关管理员取得的 token |
+| 模型名 | 由入口管理员提供，或从 `/v1/models` 查询 |
 
-入站协议由路径决定，不靠 `Authorization` 头判断：
+入站协议由路径决定。请求按客户端习惯带三种 token 头之一，OpenAI 兼容客户端通常用 `Authorization: Bearer <token>`：
 
 | 客户端类型 | 路径前缀 |
 | --- | --- |
@@ -30,8 +30,8 @@ description: Claude Code、Codex、OpenAI SDK、Anthropic SDK 与 Gemini SDK 的
 ## Claude Code
 
 ```bash
-export ANTHROPIC_BASE_URL=http://127.0.0.1:4567
-export ANTHROPIC_AUTH_TOKEN=lax-local
+export ANTHROPIC_BASE_URL=https://larkax.com
+export ANTHROPIC_AUTH_TOKEN=<token>
 export ANTHROPIC_MODEL=deepseek-v4-pro
 claude
 ```
@@ -45,20 +45,20 @@ Codex 使用 openai-responses 协议，base URL 要包含 `/v1`：
 ```toml
 # ~/.codex/config.toml
 model = "gpt-5.1"
-model_provider = "lax"
+model_provider = "larkax"
 
-[model_providers.lax]
-name = "lax"
-base_url = "http://127.0.0.1:4567/v1"
-env_key = "LAX_API_KEY"
+[model_providers.larkax]
+name = "larkax"
+base_url = "https://larkax.com/v1"
+env_key = "LARKAX_API_KEY"
 ```
 
 ```bash
-export LAX_API_KEY=lax-local
+export LARKAX_API_KEY=<token>
 codex
 ```
 
-模型名取 `lax model ls` 里可用的一项。如果上游只提供 openai-chat，网关会从 responses 转到 chat。
+模型名取 `/v1/models` 返回的一项。上游只提供 openai-chat 时，入口会把 responses 请求转到 chat。
 
 ## OpenAI SDK
 
@@ -67,7 +67,7 @@ Python：
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://127.0.0.1:4567/v1", api_key="lax-local")
+client = OpenAI(base_url="https://larkax.com/v1", api_key="<token>")
 resp = client.chat.completions.create(
     model="deepseek-v4-pro",
     messages=[{"role": "user", "content": "hello"}],
@@ -80,7 +80,7 @@ Node.js：
 ```js
 import OpenAI from "openai";
 
-const client = new OpenAI({ baseURL: "http://127.0.0.1:4567/v1", apiKey: "lax-local" });
+const client = new OpenAI({ baseURL: "https://larkax.com/v1", apiKey: "<token>" });
 const resp = await client.chat.completions.create({
   model: "deepseek-v4-pro",
   messages: [{ role: "user", content: "hello" }],
@@ -92,7 +92,7 @@ const resp = await client.chat.completions.create({
 ```python
 from anthropic import Anthropic
 
-client = Anthropic(base_url="http://127.0.0.1:4567", api_key="lax-local")
+client = Anthropic(base_url="https://larkax.com", api_key="<token>")
 msg = client.messages.create(
     model="claude-sonnet",
     max_tokens=256,
@@ -110,8 +110,8 @@ gemini 的模型名在 URL 路径里，不在请求体里。网关接受原生 `
 from google import genai
 
 client = genai.Client(
-    api_key="lax-local",
-    http_options={"base_url": "http://127.0.0.1:4567"},
+    api_key="<token>",
+    http_options={"base_url": "https://larkax.com"},
 )
 resp = client.models.generate_content(
     model="gemini-2.5-pro",
@@ -122,7 +122,8 @@ resp = client.models.generate_content(
 如果客户端不接受自定义 base URL，也可以直接用 HTTP：
 
 ```bash
-curl -s http://127.0.0.1:4567/v1beta/models/gemini-2.5-pro:generateContent \
+curl -s https://larkax.com/v1beta/models/gemini-2.5-pro:generateContent \
+  -H 'Authorization: Bearer <token>' \
   -H 'Content-Type: application/json' \
   -d '{"contents":[{"parts":[{"text":"hello"}]}]}'
 ```
@@ -132,8 +133,10 @@ curl -s http://127.0.0.1:4567/v1beta/models/gemini-2.5-pro:generateContent \
 不知道有哪些模型名可用时问网关：
 
 ```bash
-curl -s http://127.0.0.1:4567/v1/models
-curl -s http://127.0.0.1:4567/v1/models/deepseek-v4-pro
+curl -s https://larkax.com/v1/models \
+  -H 'Authorization: Bearer <token>'
+curl -s https://larkax.com/v1/models/deepseek-v4-pro \
+  -H 'Authorization: Bearer <token>'
 ```
 
 两个接口只读、只收 GET，不写请求记录，也不影响冷却与选号。停用账号提供的模型不会出现在清单里；冷却中的模型仍会出现。
@@ -142,9 +145,9 @@ curl -s http://127.0.0.1:4567/v1/models/deepseek-v4-pro
 
 | 现象 | 先检查 |
 | --- | --- |
-| 401 / 403 | 本机网关不校验客户端 key；先看 `lax log tail` 里上游返回的状态 |
-| 404 | 路径是否多了或少了 `/v1`；模型名是否在 `lax model ls` 里 |
-| 400，提示模型不存在 | 客户端写的名字没有同步或探活通过；用 `lax model ls` 核对 |
-| 503 | 候选账号都不可用或在冷却；看 `lax route explain <模型>` |
-| 流式没有输出 | 客户端与入站协议是否匹配；`lax model call --stream` 先验证网关 |
+| 401 / 403 | 检查 `Authorization: Bearer <token>` 是否填对；仍失败时联系入口管理员确认访问权限 |
+| 404 | 路径是否多了或少了 `/v1`；模型名是否在 `/v1/models` 里 |
+| 400，提示模型不存在 | 客户端写的名字不在模型清单里；用 `/v1/models` 核对 |
+| 503 | 入口没有可用候选账号；稍后重试或联系入口管理员 |
+| 流式没有输出 | 客户端与入站协议是否匹配；先用非流式请求验证同一模型 |
 

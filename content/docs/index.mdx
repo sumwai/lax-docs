@@ -1,15 +1,15 @@
 ---
-title: lax
-description: 本机上的模型总机：一个地址接入多家上游、多种协议
+title: larkax
+description: 一个地址接入多家上游、多种协议
 ---
 
-lax 是运行在本机的模型网关。它把多家上游的 API key、模型清单与选号策略收在一台机器上，客户端只连接一个地址。
+larkax 是模型网关。默认入口是 `https://larkax.com`，客户端把各家的 SDK 指过来就能使用；也可以在自己的主机上部署同一套网关。
 
-它解决的是一个日常问题：Claude Code 说 anthropic，Codex 说 openai-responses，普通 OpenAI SDK 说 openai-chat，Google SDK 说 gemini。没有网关时，每一种客户端都要单独配置上游地址、凭据与模型名。lax 把这些配置集中在本机，客户端换协议、换上游、换账号都不用改代码。
+它解决的是一个日常问题：Claude Code 说 anthropic，Codex 说 openai-responses，普通 OpenAI SDK 说 openai-chat，Google SDK 说 gemini。没有网关时，每一种客户端都要单独配置上游地址、凭据与模型名。larkax 把这些配置集中在一个入口后面，客户端换协议、换上游、换账号都不用改代码。
 
 ```text
 Claude Code ─┐
-Codex ───────┼─→ http://127.0.0.1:4567 ─→ 供应商 A / 账号 A1
+Codex ───────┼─→ https://larkax.com ─→ 供应商 A / 账号 A1
 OpenAI SDK ──┤                             供应商 A / 账号 A2
 Gemini SDK ──┘                             供应商 B / 账号 B1
 ```
@@ -18,7 +18,7 @@ Gemini SDK ──┘                             供应商 B / 账号 B1
 
 | 特性 | 说明 |
 | --- | --- |
-| 本机优先 | 默认只监听 `127.0.0.1:4567`，不校验入站凭据，适合单人单机 |
+| 默认入口 | 客户端连接 `https://larkax.com`，用 Bearer token 鉴权 |
 | 多协议 | 八条线协议：anthropic、openai-chat、openai-responses、gemini、systemone、openai-embeddings、openai-speech、openai-transcriptions |
 | 协议转换 | 四条对话协议任意进入、任意出站，共十六种组合；流式、工具调用与思考内容都在转换范围内 |
 | 账号池 | 同一供应商可加多个账号，按主备、轮转、权重、成功率或 softmax 选号 |
@@ -29,34 +29,33 @@ Gemini SDK ──┘                             供应商 B / 账号 B1
 ## 它不是什么
 
 - 不是多租户服务：没有用户、充值、额度与网页后台。
-- 不是云端代理：数据、密钥与请求记录都在本机。
-- 不提供公网鉴权：默认只绑回环地址；要放到内网或公网，前面必须自己加认证与 TLS。
+- 入口鉴权只区分能否访问，不区分不同用户的数据与配额。
+- 不是必须自部署：默认直接连接 `larkax.com`，自部署只是可选项。
 - 不支持订阅账号登录：只接受粘贴 API key，不处理浏览器 OAuth 与 token 刷新。
 - 不逆向上游接口：只按上游公开的 HTTP 协议转发。
 
-## 一条最短路径
+## 第一条请求
 
 ```bash
-make build                                             # 生成单文件 ./lax
-./lax init                                             # 配置、数据库、密钥
-./lax account add ds --provider deepseek --key sk-xxx  # 添加一个账号
-./lax model sync --account ds                          # 拉上游模型清单
-./lax model probe --account ds                         # 探活，只有通过的进入选号
-./lax serve                                            # 前台启动网关
+curl -s https://larkax.com/v1/chat/completions \
+  -H 'Authorization: Bearer <token>' \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-然后把客户端的 base URL 指向 `http://127.0.0.1:4567`。完整步骤见[快速开始](/docs/start/quickstart)，各客户端的配置见[客户端接入](/docs/start/clients)。
+token 由入口管理员提供。完整步骤见[直接使用](/docs/hosted)，各客户端的 base URL 与请求头见[客户端接入](/docs/hosted/clients)。
+
+自部署时，先安装并初始化，再添加自己的上游账号、同步并探活模型，最后启动 `lax serve`。步骤见[自部署](/docs/self-hosted)。
 
 ## 从哪里读起
 
 | 想做的事 | 页面 |
 | --- | --- |
-| 安装并跑通第一条请求 | [安装](/docs/start/install)、[快速开始](/docs/start/quickstart) |
+| 直接使用 `larkax.com` | [直接使用](/docs/hosted)、[鉴权与错误](/docs/hosted/auth) |
+| 在自己的主机上部署 | [自部署](/docs/self-hosted)、[安装](/docs/self-hosted/install) |
 | 理解供应商、账号、模型与请求的关系 | [工作原理](/docs/concepts/how-it-works) |
-| 调整多个账号之间的选择顺序 | [选号](/docs/route) |
-| 接入 Claude Code、Codex、SDK | [客户端接入](/docs/start/clients) |
-| 接一个协议形状特殊的上游 | [插件](/docs/plugins) |
-| 看用量、查错误、搬数据 | [运维](/docs/operate/usage) |
+| 接入 Claude Code、Codex、SDK | [客户端接入](/docs/hosted/clients) |
+| 在自己的主机上选号、接插件或查用量 | [自部署](/docs/self-hosted) |
 | 查每个命令的参数 | [命令行参考](/docs/reference/cli) |
 | 看版本改了什么 | [版本记录](/docs/releases) |
 

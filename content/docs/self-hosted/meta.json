@@ -1,0 +1,15 @@
+{
+  "title": "自部署",
+  "icon": "Server",
+  "defaultOpen": true,
+  "pages": [
+    "index",
+    "install",
+    "quickstart",
+    "configure",
+    "route",
+    "gateway",
+    "plugins",
+    "operate"
+  ]
+}

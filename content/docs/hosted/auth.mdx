@@ -1,0 +1,74 @@
+---
+title: 鉴权与错误
+description: token 的放置位置、401 响应形状与常见排查
+---
+
+`https://larkax.com` 在网关前面做入口鉴权。网关本身不校验入站凭据，鉴权失败由入口直接返回，不会进入选号与转发。
+
+## 三种请求头
+
+同一个 token 可以放在三种头里，按客户端习惯选择：
+
+| 头 | 适合 |
+| --- | --- |
+| `Authorization: Bearer <token>` | OpenAI SDK、Codex、curl |
+| `x-api-key: <token>` | Anthropic SDK、Claude Code |
+| `x-goog-api-key: <token>` | Gemini SDK 与兼容客户端 |
+
+三者任一匹配即放行。不要把 token 写进 URL 查询参数。
+
+## 401 响应
+
+入口按入站路径返回三种错误体，与对应协议的上游错误形状一致。
+
+OpenAI 与其它路径：
+
+```json
+{
+  "error": {
+    "code": null,
+    "message": "缺少或错误的凭据：把 api_key 填成 token，按 Authorization: Bearer <token> 发送",
+    "param": null,
+    "type": "invalid_request_error"
+  }
+}
+```
+
+Anthropic：
+
+```json
+{
+  "type": "error",
+  "error": {
+    "type": "authentication_error",
+    "message": "缺少或错误的凭据：把 api_key 填成 token，按 x-api-key: <token> 或 Authorization: Bearer <token> 发送"
+  }
+}
+```
+
+Gemini：
+
+```json
+{
+  "error": {
+    "code": 401,
+    "message": "缺少或错误的凭据：把 api_key 填成 token，按 x-goog-api-key: <token> 发送",
+    "status": "UNAUTHENTICATED"
+  }
+}
+```
+
+## 排查
+
+| 现象 | 检查 |
+| --- | --- |
+| 401 | token 是否完整、是否放进了当前客户端使用的那一种头 |
+| 403 | token 正确但入口拒绝；联系管理员确认访问权限 |
+| 404 | 路径是否多了或少了 `/v1`，模型名是否在 `/v1/models` 里 |
+| 503 | 入口正常，但网关没有可用候选账号；联系管理员查看冷却与账号状态 |
+
+## 下一步
+
+- 客户端配置：[客户端接入](/docs/hosted/clients)
+- 自部署时的网关与协议：[网关](/docs/self-hosted/gateway)
+- 自己运行网关：[自部署](/docs/self-hosted)
