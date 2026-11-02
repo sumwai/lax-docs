@@ -3,7 +3,7 @@
   "icon": "Server",
   "defaultOpen": true,
   "pages": [
-    "index",
+    "!index",
     "install",
     "quickstart",
     "configure",
