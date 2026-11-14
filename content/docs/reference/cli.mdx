@@ -35,6 +35,7 @@ lax account add -h
 | `provider` | 供应商：`ls`、`add`、`set`、`unset`、`rm`、`header` |
 | `model` | 模型：`ls`、`show`、`add`、`sync`、`probe`、`alias`、`price`、`capability`、`dialect`、`call`、`decide`、`speak`、`transcribe` |
 | `route` | 选号：`ls`、`show`、`set`、`unset`、`account`、`explain` |
+| `quota` | 账号额度：`ls`、`show`、`refresh`、`set`、`unset` |
 | `plugin` | 插件：`install`、`update`、`rollback`、`verify`、`logs`、`reload`、`config`、`ls`、`show`、`enable`、`disable`、`rm`、`doctor` |
 | `usage` | 按账号、模型或日期汇总用量 |
 | `log` | 请求记录：`tail` |
@@ -175,7 +176,7 @@ lax route explain <模型> [--session <会话键>] [--seed N]
 
 `route set` 参数：
 
-| 参数 | 取值 | 默认 |
+| 参数 | 说明 | 默认 |
 | --- | --- | --- |
 | `--strategy` | `priority`、`rotate`、`weighted`、`success`、`softmax` | 必填 |
 | `--sticky` | `prefer`、`off`、`strict` | `prefer` |
@@ -186,6 +187,46 @@ lax route explain <模型> [--session <会话键>] [--seed N]
 | `--score-latency` | 浮点数 | `0.1` |
 | `--window` | `90m`、`24h`、`7d`、`2w` | `1d` |
 | `--min-samples` | 正整数 | `20` |
+| `--quota-order` | `off`、`expiry_asc`、`expiry_desc`、`ratio_desc`、`ratio_asc`、`usd_desc`、`usd_asc` | `off` |
+| `--quota-min-usd` | 不小于 0 的数 | `0` |
+
+`route set` 是整条覆盖，两个额度参数没写也会回到默认值。
+
+`route show` 的人读输出在表格后多一行 `额度排序：… / 最低折合 USD：…`；`--json` 多 `quota_order` 与 `quota_min_usd` 两个字段。
+
+### quota
+
+```bash
+lax quota ls [--json]
+lax quota show <账号> [--json]
+lax quota refresh <账号> [--json]
+lax quota refresh --all [--json]
+lax quota set <账号> [参数]
+lax quota unset <账号> [字段]
+```
+
+`quota ls` 列出所有账号的额度快照与监控设置。没有快照的账号状态写「未刷新」，其余列写 `-`。
+
+`quota show` 显示一个账号的完整事实与监控设置表。它按当前设置重新折算 USD，改过汇率后不需要重新刷新。
+
+`quota refresh` 手动查一次上游额度，没有 `--due` 参数。每个账号最多等 30 秒；部分端点失败时只保留失败端点的旧值。不支持的供应商或 `source=off` 的账号会被跳过，不算失败。任一支持的账号整次刷新失败（凭据被拒或错误）时退出码为 1；部分端点失败不算。它不发转发请求，不写 `requests` 与 `route_stats`，也不停用账号。
+
+`quota set` 参数：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--source` | `auto`、`commandcode`、`deepseek`、`off`；`auto` 按供应商映射 | `auto` |
+| `--fx-rate` | 非 USD 币种折 USD 的手工汇率，必须大于 0 | 未设置 |
+| `--auto-refresh` | `serve` 时是否定时刷新；`--auto-refresh=false` 关闭 | `false` |
+| `--expiry-mode` | `warn`、`deprioritize`、`exclude` | `warn` |
+| `--expiry-days` | 临近到期的提前天数，1 到 3650 | `3` |
+| `--base-url` | 额度接口地址；只取协议、主机与端口 | 空，用供应商 `base_url` 的 origin |
+
+表里的默认值是账号没有设置时的取值；不写某项时保留原值，不会回到默认。`quota set` 是 patch 语义，只改显式给出的项；一个都不给是用法错误。修改 `--source` 会清掉旧来源的快照。
+
+`quota unset` 的字段是 `source`、`fx_rate`、`auto_refresh`、`expiry_mode`、`expiry_days` 与 `base_url`。写字段时只恢复那一项；不写字段时删掉整行设置。
+
+完整说明见[账号额度](/docs/self-hosted/route/quota)。
 
 ### plugin
 
@@ -230,7 +271,7 @@ lax log tail [-n N] [--follow]
 | 退出码 | 含义 |
 | --- | --- |
 | `0` | 成功 |
-| `1` | 运行失败：上游错误、同步失败、探活无可用模型、`doctor` 有检查未通过、非 2xx 请求 |
+| `1` | 运行失败：上游错误、同步失败、探活无可用模型、额度刷新失败、`doctor` 有检查未通过、非 2xx 请求 |
 | `2` | 用法错误：参数缺失、取值非法、未知子命令 |
 
 参数名拼错或参数值无法解析时退出码为 1，是这条规则的例外。
@@ -243,5 +284,9 @@ lax account ls --json
 lax --config ./config.json --db ./lax.db serve
 lax route set glm-4.6 --strategy softmax --temperature 0.05 --explore 1
 lax route explain glm-4.6 --session demo --seed 42 --json
+lax quota refresh cc1
+lax quota ls --json
+lax quota set cc1 --fx-rate 0.14 --expiry-mode deprioritize
+lax route set glm-4.6 --strategy weighted --quota-order ratio_desc --quota-min-usd 1
 ```
 

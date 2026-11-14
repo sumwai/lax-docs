@@ -15,6 +15,8 @@ description: 从候选账号到最终顺序，以及如何观察一次选号
 
 模型策略优先于默认策略；模型没有覆盖时回落到默认；默认也没写过时使用内置策略。
 
+额度监控是按账号设置的独立一层，不算选号策略的一层。它默认只读；只有 `route set` 的 `--quota-order` 与 `--quota-min-usd` 显式开启后，额度才参与候选过滤与排序。
+
 ## 内置默认
 
 | 项 | 值 |
@@ -26,6 +28,8 @@ description: 从候选账号到最终顺序，以及如何观察一次选号
 | 统计窗口 | `1d` |
 | 最小样本 | `20` |
 | 评分权重 | 优先级 0.4、成功率 0.5、延迟 0.1 |
+| 额度排序 | `off`，不按额度改顺序 |
+| 最低折合 USD | `0`，不按余额排除 |
 
 ## 操作
 
@@ -47,7 +51,11 @@ lax route explain glm-4.6 --session demo --seed 42
 | `route account` | 查看或修改账号权重 |
 | `route explain` | 预演一次选号，不发上游、不写记录 |
 
+`route show` 在表格后另打一行 `额度排序：… / 最低折合 USD：…`，`--json` 带 `quota_order` 与 `quota_min_usd`。`route ls` 不显示额度设置。
+
 `route set` 是整条覆盖：没写的参数取内置默认，而不是保留原值。例如原本设置了 `--min-samples 50`，下一次只写 `--strategy rotate`，最小样本会回到 20。
+
+额度两项同样会回到默认。原本设置了 `--quota-order usd_desc`，下一次只写 `--strategy rotate`，额度排序会回到 `off`。
 
 ## 目标名与别名
 
@@ -65,9 +73,16 @@ lax route explain glm-4.6 --session demo --seed 42
 
 冷却按“账号 + 模型”记录。一个账号的一个模型被限流，不影响这个账号的其它模型，也不影响其它账号的同一个模型。
 
+## 与额度的关系
+
+额度是账号的上游余额与到期时间，属于只读事实。它不改变转发路径，只在显式开启时做两件事：在冷却过滤之后排除已知余额过低或已到期的账号，再在策略排完顺序后做一次稳定排序。
+
+默认两项都关闭，因此不配置额度时，候选与顺序与没有这项功能时一致。`strict` 会话粘性命中但被额度排除时，仍然返回 503，不换号。
+
 ## 继续读
 
 - 五种策略与参数：[选号策略](/docs/self-hosted/route/policies)
 - 账号权重的两个作用域：[账号权重](/docs/self-hosted/route/weights)
+- 额度怎么查、怎么参与选号：[账号额度](/docs/self-hosted/route/quota)
 - 预演输出怎么看：[预演选号](/docs/self-hosted/route/explain)
 

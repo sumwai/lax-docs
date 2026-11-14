@@ -15,7 +15,7 @@ larkax 的公开文档内容。仓库里只有 Markdown / MDX 页面与各级 `m
 | `content/docs/self-hosted/` | 自部署入口、安装、首次配置与全部管理页面 |
 | `content/docs/concepts/` | 工作原理、账号与模型、请求生命周期 |
 | `content/docs/self-hosted/configure/` | 供应商、账号、模型、价格 |
-| `content/docs/self-hosted/route/` | 选号策略、权重与解释 |
+| `content/docs/self-hosted/route/` | 选号策略、权重、账号额度与解释 |
 | `content/docs/self-hosted/gateway/` | 协议、转换、请求头、错误、实时、嵌入、决策、语音 |
 | `content/docs/self-hosted/plugins/` | 插件安装、方言、清单与安全 |
 | `content/docs/self-hosted/operate/` | 用量、日志、诊断、数据与升级 |

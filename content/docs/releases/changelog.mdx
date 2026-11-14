@@ -1,9 +1,29 @@
 ---
 title: 更新日志
-description: 从 v0.1.0 到 v0.2.1 的版本变化
+description: 从 v0.1.0 到 v0.2.2 的版本变化
 ---
 
 版本按发布时间排列。每个版本只写使用者能看到的能力变化与必要的行为修正，不列内部重构与提交过程。
+
+## v0.2.2
+
+发布时间：2026-11-14
+
+### 新增
+
+- `lax quota` 一组命令：`ls`、`show`、`refresh`、`set`、`unset`，只读查看上游账号的余额与到期时间。
+- 支持 CommandCode 与 DeepSeek 两类额度来源；DeepSeek 支持多币种，优先 CNY。
+- `route set` 新增 `--quota-order` 与 `--quota-min-usd`，可让额度参与候选过滤与最终排序。
+- `route show` 与 `route explain` 显示额度策略；`route explain` 在有快照时追加「额度 / 剩余 / 到期」三列。
+- `serve` 可为 `auto_refresh=true` 的账号后台刷新额度，启动先刷一次，之后每 30 分钟一轮。
+
+### 行为
+
+- 额度功能默认关闭：`quota_order=off`、`quota_min_usd=0`、`auto_refresh=false`、`expiry_mode=warn`、`expiry_days=3`。不配置时选号行为与旧版一致。
+- `--quota-min-usd` 只排除折合余额已知且低于阈值的账号；从未刷新、汇率未知或余额未知的账号保留。
+- 额度排序在策略、会话粘性与 softmax 之后做稳定排序；`strict` 粘性被额度排除时仍返回 503，不换号。
+- 额度刷新失败只更新快照状态，不停用账号、不写请求记录；只有真实转发请求收到 401 才停用账号。
+- `source=off` 的账号旧快照不再参与选号，下一次刷新会清掉旧快照。
 
 ## v0.2.1
 

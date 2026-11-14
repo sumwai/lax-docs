@@ -93,6 +93,22 @@ lax account rm ds
 | 模型协议 | `model show` | `model probe` 发现或 `model add --protocol` |
 | 模型价格 | `model price ls <模型> --account <账号>` | `model price set --account` |
 | 账号权重 | `route account ls` | `route account set` |
+| 额度快照 | `quota show <账号>` | `quota refresh <账号>` |
+| 额度监控设置 | `quota show <账号>` | `quota set <账号>` |
+
+## 额度监控
+
+`lax quota` 一组命令查看与刷新上游账号的余额、周期结束与到期时间。它只读监控，不分配、不扣减、不计费：
+
+```bash
+lax quota refresh ds
+lax quota show ds
+lax quota ls
+```
+
+目前只支持 CommandCode 与 DeepSeek 两类账号，其它供应商显示「不支持」。默认不自动刷新，也不参与选号；要让额度参与选号，在 `route set` 上配置 `--quota-order` 与 `--quota-min-usd`。
+
+额度刷新失败只更新快照状态，不停用账号、不写请求记录。整次刷新失败且其中出现 401 或 403 时也一样；只有真实转发请求收到 401 才停用账号。详见[账号额度](/docs/self-hosted/route/quota)。
 
 ## 优先级与权重不同
 

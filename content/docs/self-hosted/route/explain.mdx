@@ -3,7 +3,7 @@ title: 预演选号
 description: 不发请求查看候选顺序、排除原因与 softmax 概率
 ---
 
-`route explain` 用当前策略、权重与统计预演一次选号。它只读数据库，不发上游请求，不写请求记录，也不改冷却。
+`route explain` 用当前策略、权重、统计与额度预演一次选号。它只读数据库，不发上游请求，不写请求记录，也不改冷却。
 
 ## 基本用法
 
@@ -23,11 +23,14 @@ lax route explain glm-4.6 --json
 
 ```text
 模型 model-a：weighted / 会话 prefer / 来源 模型
+额度排序：off / 最低折合 USD：0.00
 顺序  账号    权重  样本  成功率  平均延迟  得分   概率
 1     acct-a  3     0     50%     -         0.700  -
 2     acct-b  1     0     50%     -         0.300  -
 最终顺序：acct-a → acct-b
 ```
+
+额度策略行始终打印，与有没有快照无关。`off / 0.00` 表示额度不参与选号。
 
 | 列 | 含义 |
 | --- | --- |
@@ -43,8 +46,28 @@ lax route explain glm-4.6 --json
 被排除的账号会单独列一行：
 
 ```text
-排除：acct-c（正在冷却）；acct-d（没有声明这个模型）
+排除：acct-c（正在冷却）；acct-d（没有声明这个模型）；acct-e（额度：折合余额 0.2 USD 低于最低阈值 1 USD）
 ```
+
+额度过滤造成的排除原因以「额度：」开头，便于与停用、无模型、冷却区分。
+
+## 有额度快照时
+
+只要至少一个候选有额度快照，表格就在末尾追加三列：
+
+```text
+顺序  账号    权重  样本  成功率  平均延迟  得分   概率  额度      剩余   到期
+1     acct-a  3     0     50%     -         0.700  -     12.5 USD  62.5%  2026-12-01 00:00
+2     acct-b  1     0     50%     -         0.300  -     0.2 USD   1.6%   2026-11-16 00:00（临近）
+```
+
+| 列 | 含义 |
+| --- | --- |
+| 额度 | 上游余额与币种；没有快照时显示 `-` |
+| 剩余 | 余额 ÷ 总额；总额未知时显示 `-` |
+| 到期 | 周期结束时间；临近或已到期时在括号里标注 |
+
+没有快照的账号三列都是 `-`，不会用 0 冒充已知额度。所有候选都没有快照时，表格保持原来的列。
 
 ## JSON 输出
 
@@ -59,7 +82,9 @@ lax route explain glm-4.6 --json
     "temperature": 0.1,
     "explore": 0.02,
     "window_seconds": 86400,
-    "min_samples": 20
+    "min_samples": 20,
+    "quota_order": "off",
+    "quota_min_usd": 0
   },
   "candidates": [
     {
@@ -72,7 +97,22 @@ lax route explain glm-4.6 --json
       "latency_samples": 0,
       "avg_latency_ms": 0,
       "score": 0.7,
-      "probability": null
+      "probability": null,
+      "quota": {
+        "status": "ok",
+        "balance": 12.5,
+        "currency": "USD",
+        "balance_usd": 12.5,
+        "remaining_ratio": 0.625,
+        "period_end": 1796083200000,
+        "plan_id": "pro",
+        "plan_status": "active",
+        "cancel_at_period_end": false,
+        "expiry_mode": "warn",
+        "expiry_days": 3,
+        "checked_at": 1795300000,
+        "error": ""
+      }
     }
   ],
   "excluded": [],
@@ -83,6 +123,8 @@ lax route explain glm-4.6 --json
 }
 ```
 
+`policy.quota_order` 与 `policy.quota_min_usd` 是选号侧的额度设置。候选没有快照时没有 `quota` 对象；这个对象只给选号与排障需要的字段，完整事实用 `quota show` 查看。
+
 ## 用预演排障
 
 | 现象 | 预演里看什么 |
@@ -92,6 +134,9 @@ lax route explain glm-4.6 --json
 | 成功率策略没有效果 | `attempts` 是否达到 `min_samples`；样本不足时成功率都在 0.5 附近 |
 | softmax 看起来随机 | 固定 `--seed` 复现；看 `temperature` 与 `explore` |
 | 权重没有生效 | `policy.strategy` 是否为 `weighted` 或 `softmax`；候选的 `weight` 是否正确 |
+| 账号被额度排除 | `excluded` 里的原因是否以「额度：」开头；再看 `policy.quota_order` 与 `quota_min_usd` |
+| 设置了额度阈值却没排除 | 账号的 `quota.balance_usd` 是否为 `null`；未知余额不会被阈值排除 |
+| 额度列没有出现 | 所有候选都没有快照；先运行 `lax quota refresh <账号>` |
 
 ## 预演与真实请求的差异
 
@@ -103,4 +148,5 @@ lax route explain glm-4.6 --json
 
 - 策略参数：[选号策略](/docs/self-hosted/route/policies)
 - 权重作用域：[账号权重](/docs/self-hosted/route/weights)
+- 额度事实与刷新：[账号额度](/docs/self-hosted/route/quota)
 

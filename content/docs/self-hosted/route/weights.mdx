@@ -41,7 +41,7 @@ lax route account unset acct-a --model glm-4.6
 | 存储 | 账号属性 | 选号策略输入 |
 | 含义 | 尝试顺序 | 分流比例 |
 | 适用策略 | `priority`、`success`、`softmax` 的评分 | `weighted`、`softmax` |
-| 典型场景 | 主备账号 | 套餐额度 3:1 |
+| 典型场景 | 主备账号 | 套餐份额 3:1 |
 
 一个账号可以同时有低优先级和高权重。它们不冲突：`priority` 决定谁先被尝试，权重决定在按比例策略里占多少份额。
 

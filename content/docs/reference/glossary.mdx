@@ -31,11 +31,26 @@ description: 文档里反复出现的说法，一句话速查
 | 术语 | 一句话 | 详见 |
 | --- | --- | --- |
 | 选号 | 在一次请求里挑选账号的过程 | [选号](/docs/self-hosted/route) |
-| 候选 | 满足启用、提供该模型、未冷却的账号 | [请求生命周期](/docs/concepts/request-lifecycle) |
+| 候选 | 满足启用、提供该模型、未冷却，以及开启额度过滤时的额度条件的账号 | [请求生命周期](/docs/concepts/request-lifecycle#4-筛候选账号) |
 | 冷却 | 账号在某个模型上失败后被暂时移出候选的时间 | [请求生命周期](/docs/concepts/request-lifecycle) |
 | 会话粘性 | 同一会话键是否固定到同一账号 | [选号策略](/docs/self-hosted/route/policies) |
 | 权重 | 账号在 weighted 与 softmax 里的分流比例 | [账号权重](/docs/self-hosted/route/weights) |
 | 平滑成功率 | 加入最小样本后的成功率，避免零样本排到最后 | [选号策略](/docs/self-hosted/route/policies) |
+
+## 额度
+
+| 术语 | 一句话 | 详见 |
+| --- | --- | --- |
+| 账号额度 | 上游账号的余额与到期时间，只读监控，不是按最终用户分配的配额 | [账号额度](/docs/self-hosted/route/quota) |
+| 额度快照 | 最近一次刷新留下的账号额度事实，一个账号一行 | [手动刷新](/docs/self-hosted/route/quota#手动刷新) |
+| 剩余比例 | 余额 ÷ 总额；总额未知时也算未知 | [CommandCode](/docs/self-hosted/route/quota#commandcode) |
+| 折合 USD | 把原币种按手工汇率折成美元后的值 | [金额与币种](/docs/self-hosted/route/quota#金额与币种) |
+| 监控来源 | `auto`、`commandcode`、`deepseek` 或 `off` | [监控设置](/docs/self-hosted/route/quota#监控设置) |
+| 额度排序 | 策略、粘性与 softmax 之后对完整顺序做的稳定排序 | [参与选号](/docs/self-hosted/route/quota#参与选号) |
+| 最低折合余额 | `--quota-min-usd`，排除已知折合余额低于阈值的账号 | [参与选号](/docs/self-hosted/route/quota#参与选号) |
+| 到期处理 | `warn` 只提示、`deprioritize` 排到末尾、`exclude` 排除 | [到期处理](/docs/self-hosted/route/quota#到期处理) |
+| 限流窗口 | CommandCode 的 5 小时与每周窗口，不是月度总额 | [CommandCode](/docs/self-hosted/route/quota#commandcode) |
+| 上游用量 | 上游统计的所有客户端合计，仅供查看 | [CommandCode](/docs/self-hosted/route/quota#commandcode) |
 
 ## 用量
 

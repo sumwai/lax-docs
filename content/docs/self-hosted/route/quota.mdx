@@ -1,0 +1,241 @@
+---
+title: 账号额度
+description: 只读查看上游账号的余额与到期时间，并按需参与选号
+---
+
+账号额度是上游账号的余额与到期时间。lax 只读取上游、保存快照、供命令查看，也可以按设置让它参与选号；不做分配、扣减或计费。
+
+这与公开入口的「按最终用户配额」不是一回事：账号额度是管理员侧针对上游账号的只读监控，不是分配给使用者的额度。
+
+默认关闭自动刷新，也不参与选号。不配置时，选号行为与没有额度功能时一致。
+
+## 支持范围
+
+| 监控来源 | 地址 | 能拿到的事实 |
+| --- | --- | --- |
+| CommandCode | 四个 `GET /alpha/...` 端点 | 余额、本期已用、剩余比例、周期结束、套餐、5 小时与每周限流窗口、上游用量、显示名 |
+| DeepSeek | `GET /user/balance` | 余额与可用状态；没有总额、周期与剩余比例 |
+
+其它供应商返回「不支持」。`quota set --source` 可强制指定来源，`auto` 按账号所属供应商映射，`off` 关闭监控。来源关闭后，旧快照不再参与选号；下一次刷新会清掉旧快照。
+
+## 命令速览
+
+```bash
+lax quota ls [--json]
+lax quota show <账号> [--json]
+lax quota refresh <账号> [--json]
+lax quota refresh --all [--json]
+lax quota set <账号> [参数]
+lax quota unset <账号> [字段]
+```
+
+`quota refresh` 没有 `--due` 参数。自动刷新只在 `serve` 里运行，并且只刷 `auto_refresh=true` 的账号。
+
+## 手动刷新
+
+```bash
+lax quota refresh cc1
+lax quota refresh --all
+```
+
+每个账号最多等 30 秒。部分端点失败时，失败的那一段保留上一次的已知值，成功的端点照常更新；第一次刷新没有旧值时，失败的那一段留空。凭据解密失败或地址不合法这类整体失败，也只更新状态、错误与刷新时间；有旧值时旧余额仍会显示。
+
+不支持的供应商或 `source=off` 的账号会被跳过，不计入失败。只要有任一支持的账号整次刷新失败（凭据被拒或错误），命令退出码为 1；部分端点失败不算整次失败。
+
+刷新只写额度快照，不发转发请求，不写 `requests` 与 `route_stats`，也不修改账号启用状态。整次刷新失败且其中出现 401 或 403 时，快照状态记为「凭据被拒」；部分端点被拒时状态是「部分」，失败端点里会写出来。只有真实转发请求收到 401 才停用账号。
+
+## 查看额度
+
+`quota ls` 一行一个账号，列依次是账号、供应商、状态、余额、折合 USD、剩余比例、周期结束、刷新时间与备注。
+
+没有快照的账号状态写「未刷新」，其余列写 `-`。`--json` 每项包含账号、供应商、监控设置与快照事实；显示名与失败端点只在 `quota show` 里给。
+
+```bash
+lax quota ls
+lax quota ls --json
+```
+
+`quota show` 显示一个账号的完整事实：
+
+| 项 | 内容 |
+| --- | --- |
+| 监控来源 | `auto`、`commandcode`、`deepseek` 或 `off` |
+| 状态 | 未刷新、正常、部分、凭据被拒、错误或不支持 |
+| 显示名 | 上游返回的名称 |
+| 余额 / 币种 | 上游原值，不换算 |
+| 本期已用 | CommandCode 的 `totalCredits`；DeepSeek 没有 |
+| 汇率 | 折 USD 的手工汇率，未设置时为 `-` |
+| 折合 USD | 余额、已用与总额的美元值；汇率未知时为 `-` |
+| 剩余比例 | 余额 ÷ 总额；总额未知时为 `-` |
+| 周期结束 / 套餐 / 套餐状态 / 续费 | 订阅信息；续费只展示，不影响到期判断 |
+| 5 小时窗口 / 每周窗口 | 上游限流窗口，不是月度总额 |
+| 上游用量 | 本期已用、请求数与成功率；所有客户端合计，仅供查看 |
+| 上游可用 | DeepSeek 的 `is_available` |
+| 刷新时间 / 备注 / 失败端点 | 排查刷新问题时使用 |
+| 到期状态 | 临近到期或已到期，以及设置的动作 |
+
+```bash
+lax quota show cc1
+lax quota show cc1 --json
+```
+
+改动汇率后不需要重新刷新。`quota show` 会按当前设置重新折算一次，`quota ls` 与选号侧读的也是当前设置下的结果。
+
+## 监控设置
+
+```bash
+lax quota set <账号> [--source auto|commandcode|deepseek|off] [--fx-rate N] \
+    [--auto-refresh[=true|false]] [--expiry-mode warn|deprioritize|exclude] \
+    [--expiry-days N] [--base-url <地址>]
+```
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--source` | 监控来源；`auto` 按供应商映射 | `auto` |
+| `--fx-rate` | 非 USD 币种折 USD 的手工汇率，必须大于 0 | 未设置 |
+| `--auto-refresh` | `serve` 时是否定时刷新这个账号；`--auto-refresh=false` 关闭 | `false` |
+| `--expiry-mode` | 到期处理：`warn` 只提示、`deprioritize` 排到末尾、`exclude` 排除 | `warn` |
+| `--expiry-days` | 距离周期结束多少天算临近到期，取值 1 到 3650 | `3` |
+| `--base-url` | 额度接口地址；只取协议、主机与端口，路径按供应商规则拼接 | 空，用供应商 `base_url` 的 origin |
+
+表里的默认值是账号没有设置时的取值；`quota set` 不写某项时保留原值，不会回到默认。`quota set` 是 patch 语义，只改命令行上显式给出的项，其余保留。一个参数都不给是用法错误。修改 `--source` 会删掉旧来源的快照，避免旧余额跨来源继续参与选号。
+
+`--base-url` 接受 `http` 或 `https`。明文 `http` 只允许本机回环地址，因为额度请求会带解密后的账号 key。
+
+恢复默认值：
+
+```bash
+lax quota unset cc1 fx_rate
+lax quota unset cc1
+```
+
+`quota unset` 的字段是 `source`、`fx_rate`、`auto_refresh`、`expiry_mode`、`expiry_days` 与 `base_url`。写字段时只把那一项恢复默认；不写字段时删掉整行设置。恢复后恰好等于默认值时，整行也会删掉。
+
+## 金额与币种
+
+金额统一折成 USD 再比较与排序：
+
+| 币种 | 汇率 |
+| --- | --- |
+| USD、空币种、`credits` 或 `credit` | 1 |
+| 其它币种 | 只认 `quota set --fx-rate` 的手工值 |
+
+没有汇率时，原币种余额照存，折合 USD、剩余比例与美元排序都是未知。这样不会用猜出来的汇率误排除账号。
+
+人民币没有内置默认汇率。DeepSeek 余额为 CNY 时，需要手工给一次汇率：
+
+```bash
+lax quota set ds --fx-rate 0.14
+```
+
+## 到期处理
+
+周期结束来自 CommandCode 的 `currentPeriodEnd`。DeepSeek 没有周期结束，因此不会进入到期判断。
+
+| 状态 | 判定 |
+| --- | --- |
+| 临近到期 | 距离 `period_end` 不超过 `expiry_days` 天 |
+| 已到期 | 当前时间已达到或超过 `period_end` |
+
+| 动作 | 对选号的影响 |
+| --- | --- |
+| `warn` | 只展示，不改顺序，是默认值 |
+| `deprioritize` | 临近或已到期的账号整体移到候选末尾 |
+| `exclude` | 临近或已到期的账号直接排除 |
+
+续费状态只影响展示。有套餐或周期时，`cancelAtPeriodEnd=false` 显示为自动续费，但到期判断只看时间。
+
+## 参与选号
+
+额度默认不参与选号。要让额度影响选号，在 `route set` 上配置：
+
+```bash
+lax route set glm-4.6 --strategy priority --quota-order usd_desc --quota-min-usd 1
+```
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--quota-order` | 最终稳定排序：`off`、`expiry_asc`、`expiry_desc`、`ratio_desc`、`ratio_asc`、`usd_desc`、`usd_asc` | `off` |
+| `--quota-min-usd` | 已知折合余额低于这个 USD 值的账号不参与选号；`0` 关闭 | `0` |
+
+`--quota-min-usd` 只排除「折合余额已知且低于阈值」的账号。从未刷新、汇率未知、余额未知的账号一律保留；否则一次误开的过滤会把没有快照的账号全部排除。
+
+`--quota-order` 在策略、会话粘性与 softmax 抽样之后，对完整候选顺序做一次稳定排序。未知值排在已知值后面；键相同或都未知时，保留原顺序。
+
+`expiry_mode=deprioritize` 的账号整体移到末尾，与 `--quota-order` 的选择无关；`off` 且没有 `deprioritize` 账号时，顺序原样返回。
+
+额度过滤发生在启用、提供该模型与未冷却这三条硬过滤之后。`strict` 会话粘性命中但被额度层排除时，仍然返回 503，不换号。
+
+`route set` 是整条覆盖。只写 `--strategy` 会把 `quota_order` 与 `quota_min_usd` 一起恢复默认；要保留额度设置，每次都要显式写出这两项。
+
+## 自动刷新
+
+`serve` 只为 `auto_refresh=true` 的账号启动后台刷新。启动后先刷一次，之后每 30 分钟一轮。默认关闭。
+
+```bash
+lax quota set cc1 --auto-refresh
+lax quota set cc1 --auto-refresh=false
+```
+
+自动刷新失败只写日志与快照状态，不影响请求转发，也不停用账号。自动刷新关闭时，快照会一直停留在最后一次手动刷新或上一次开启自动刷新时的结果。
+
+## 供应商差异
+
+### CommandCode
+
+一次刷新依次请求四个端点，地址取供应商 `base_url` 的 origin：
+
+```text
+GET /alpha/whoami
+GET /alpha/billing/credits
+GET /alpha/billing/subscriptions
+GET /alpha/usage/summary
+```
+
+请求头固定为 `x-api-key`、`accept: application/json` 与一个浏览器 User-Agent，不设 `Authorization`。缺少 User-Agent 时上游返回 403。
+
+| 字段 | 含义 |
+| --- | --- |
+| `monthlyCredits` | 剩余额度，不是总额 |
+| `usage.summary.totalCredits` | 本期已用 |
+| 总额 | 余额 + 本期已用 |
+| 剩余比例 | 余额 ÷ 总额 |
+| `currentPeriodEnd` | 周期结束 |
+| `cancelAtPeriodEnd=false` | 自动续费 |
+| `windowLimits` | 5 小时与每周限流窗口，不是月度总额 |
+
+`whoami` 只取显示名，失败不影响其它端点。`/alpha/*` 是未公开接口，字段与 User-Agent 要求可能变化；解析失败只记录快照状态。
+
+### DeepSeek
+
+```text
+GET /user/balance
+Authorization: Bearer <key>
+```
+
+只报余额，多币种时优先 CNY，否则取第一条。没有总额、周期与剩余比例，因此剩余比例排序与到期判断对这类账号都是未知。
+
+## 状态与边界
+
+| 状态 | 含义 |
+| --- | --- |
+| 未刷新 | 还没有快照 |
+| 正常 | 计费、订阅与用量端点都成功；显示名端点失败不影响这个状态 |
+| 部分 | 这三个端点有失败，但仍有可用数据 |
+| 凭据被拒 | 整次刷新失败，且其中出现 401 或 403；只记录，不停用账号 |
+| 错误 | 其它失败，例如地址不可用或响应无法解析 |
+| 不支持 | 供应商不支持，或 `source=off` |
+
+边界：
+
+- 只支持 CommandCode 与 DeepSeek；其它供应商会返回「不支持」，不需要监控时设 `source=off`。
+- 额度是只读事实，不做分配、扣减或计费。
+- 上游用量是所有客户端合计，不参与选号。
+- 刷新不是一次转发请求，不计入 `usage`、`log` 与 `route_stats`。
+- 余额接近 0 时，要开过滤就设一个小阈值，例如 `--quota-min-usd 0.5`；不要把某个具体余额当默认值。
+
+## 下一步
+
+- 选号策略与默认值：[选号策略](/docs/self-hosted/route/policies#额度参与选号)
+- 预演输出里的额度列：[预演选号](/docs/self-hosted/route/explain#有额度快照时)
+- 命令参数全集：[命令行参考](/docs/reference/cli#quota)

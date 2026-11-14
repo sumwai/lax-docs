@@ -11,7 +11,7 @@ description: priority、rotate、weighted、success 与 softmax 的计算方式�
 | --- | --- | --- | --- | --- |
 | `priority` | 账号 `priority` 升序 | 否 | 否 | 主备账号，稳定可预期 |
 | `rotate` | 每次请求轮换起始位置 | 否 | 否 | 多账号平均分摊 |
-| `weighted` | 按权重比例轮转 | 是 | 否 | 按套餐额度分摊 |
+| `weighted` | 按权重比例轮转 | 是 | 否 | 按账号份额分摊 |
 | `success` | 统计窗口内成功率降序 | 否 | 是 | 上游质量差异大 |
 | `softmax` | 优先级、成功率、延迟加权评分后按概率抽 | 是 | 是 | 平滑分流并探索 |
 
@@ -128,6 +128,29 @@ softmax 用无放回抽样排出完整顺序，因此故障转移顺序也不是
 
 `strict` 适合上游对多轮上下文有强绑定要求的场景，代价是命中冷却时请求直接失败。
 
+## 额度参与选号
+
+额度默认只读，不改变选号。两个 `route set` 参数可以把额度接入候选过滤与最终排序：
+
+| 参数 | 说明 | 默认 |
+| --- | --- | --- |
+| `--quota-order` | 在策略、会话粘性与 softmax 之后做稳定排序：`off`、`expiry_asc`、`expiry_desc`、`ratio_desc`、`ratio_asc`、`usd_desc`、`usd_asc` | `off` |
+| `--quota-min-usd` | 已知折合余额低于这个 USD 值的账号不参与选号；`0` 关闭 | `0` |
+
+`--quota-min-usd` 只排除「折合余额已知且低于阈值」的账号。从未刷新、汇率未知或余额未知的账号一律保留，避免一次误开的过滤误伤全部没有快照的账号。`expiry_mode=exclude` 的账号也在这一层排除。
+
+额度排序发生在策略、会话粘性与 softmax 抽样之后，重排的是已经排好的完整顺序。未知值排在已知值后面；`expiry_mode=deprioritize` 的账号整体移到末尾。
+
+额度过滤排在启用、提供该模型与未冷却这三条硬过滤之后。`strict` 会话粘性命中但被额度层排除时，仍然返回 503，不换号。
+
+`route set` 是整条覆盖。只写 `--strategy` 会把这两个额度参数一起恢复默认；要保留额度设置，每次都要显式写出。
+
+```bash
+lax route set glm-4.6 --strategy priority --quota-order usd_desc --quota-min-usd 1
+```
+
+额度事实、刷新与供应商差异见[账号额度](/docs/self-hosted/route/quota)。
+
 ## 参数适用范围
 
 | 参数 | 生效策略 |
@@ -137,6 +160,7 @@ softmax 用无放回抽样排出完整顺序，因此故障转移顺序也不是
 | `--explore` | 仅 `softmax` |
 | `--score-priority`、`--score-success`、`--score-latency` | 仅 `softmax` |
 | `--window`、`--min-samples` | `success` 与 `softmax` |
+| `--quota-order`、`--quota-min-usd` | 全部（默认关闭） |
 
 给不适用策略的参数不会报错，但也不改变行为。`route show` 会照常显示这些值。
 
@@ -147,5 +171,6 @@ softmax 用无放回抽样排出完整顺序，因此故障转移顺序也不是
 ## 下一步
 
 - 权重怎么设：[账号权重](/docs/self-hosted/route/weights)
+- 额度怎么查、怎么参与选号：[账号额度](/docs/self-hosted/route/quota)
 - 看一次具体选择：[预演选号](/docs/self-hosted/route/explain)
 
