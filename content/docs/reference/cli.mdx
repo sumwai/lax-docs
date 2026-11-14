@@ -198,18 +198,18 @@ lax route explain <模型> [--session <会话键>] [--seed N]
 
 ```bash
 lax quota ls [--json]
-lax quota show <账号> [--json]
+lax quota show <账号> [--settings] [--json]
 lax quota refresh <账号> [--json]
 lax quota refresh --all [--json]
 lax quota set <账号> [参数]
 lax quota unset <账号> [字段]
 ```
 
-`quota ls` 列出所有账号的额度快照与监控设置。没有快照的账号状态写「未刷新」，其余列写 `-`。
+`quota ls` 列出所有账号的额度快照。没有快照的账号状态写「未刷新」，其余列写 `-`。
 
-`quota show` 显示一个账号的完整事实与监控设置表。它按当前设置重新折算 USD，改过汇率后不需要重新刷新。
+`quota show` 显示一个账号的额度事实，只列这次有内容的项；未知或不适用的行直接不出现。周期结束后面会标「还剩 N 天」或「已到期」，到期之后怎么处理不在这里显示。`--settings` 单独显示监控设置（来源、汇率、自动刷新、到期处理、提前天数、额度地址），不读快照。它按当前设置重新折算 USD，改过汇率后不需要重新刷新。
 
-`quota refresh` 手动查一次上游额度，没有 `--due` 参数。每个账号最多等 30 秒；部分端点失败时只保留失败端点的旧值。不支持的供应商或 `source=off` 的账号会被跳过，不算失败。任一支持的账号整次刷新失败（凭据被拒或错误）时退出码为 1；部分端点失败不算。它不发转发请求，不写 `requests` 与 `route_stats`，也不停用账号。
+`quota refresh` 手动查一次上游额度，没有 `--due` 参数。每个账号最多等 30 秒；部分端点失败时只保留失败端点的旧值。不支持的供应商或 `source=off` 的账号会被跳过，不算失败。任一支持的账号整次刷新失败（凭据被拒或查询失败）时退出码为 1；部分端点失败不算。它不发转发请求，不写 `requests` 与 `route_stats`，也不停用账号。
 
 `quota set` 参数：
 
