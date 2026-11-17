@@ -88,6 +88,18 @@ lax route set glm-4.6 --strategy softmax \
     --score-priority 0.4 --score-success 0.5 --score-latency 0.1
 ```
 
+参数与取值：
+
+| 参数 | 作用 | 范围 | 默认 |
+| --- | --- | --- | --- |
+| `--temperature` | 控制抽样集中程度，越低越集中 | 大于 0 且不超过 1 | `0.1` |
+| `--explore` | 每个候选的保底概率，按百分比给 | `0` 到 `100` | `2`（即 2%） |
+| `--score-priority` | 优先级得分权重 | `0` 到 `1`，三项之和大于 0 | `0.4` |
+| `--score-success` | 成功率得分权重 | 同上 | `0.5` |
+| `--score-latency` | 延迟得分权重 | 同上 | `0.1` |
+| `--window` | 统计窗口 | 1 秒到 30 天 | `1d` |
+| `--min-samples` | 平滑用的最小样本 | 正整数 | `20` |
+
 评分规则：
 
 | 维度 | 计算 |
@@ -112,7 +124,7 @@ q_i = w_i × exp((score_i - max_score) / temperature)
 p_i = (1 - explore) × q_i / Σq + explore / n
 ```
 
-温度越低越集中，越高越分散。`explore` 在命令行按百分比给：`2` 表示 2%。它给每个候选保底概率，避免某个账号永远不被探索。
+温度越低越集中，越高越分散。`explore` 给每个候选保底概率，避免某个账号永远不被探索。
 
 softmax 用无放回抽样排出完整顺序，因此故障转移顺序也不是固定的。相同数据与相同 `--seed` 会得到相同顺序。
 
@@ -137,13 +149,9 @@ softmax 用无放回抽样排出完整顺序，因此故障转移顺序也不是
 | `--quota-order` | 在策略、会话粘性与 softmax 之后做稳定排序：`off`、`expiry_asc`、`expiry_desc`、`ratio_desc`、`ratio_asc`、`usd_desc`、`usd_asc` | `off` |
 | `--quota-min-usd` | 已知折合余额低于这个 USD 值的账号不参与选号；`0` 关闭 | `0` |
 
-`--quota-min-usd` 只排除「折合余额已知且低于阈值」的账号。从未刷新、汇率未知或余额未知的账号一律保留，避免一次误开的过滤误伤全部没有快照的账号。`expiry_mode=exclude` 的账号也在这一层排除。
+`--quota-min-usd` 只排除折合余额已知且低于阈值的账号，从未刷新、汇率未知或余额未知的账号一律保留。`--quota-order` 在策略、会话粘性与 softmax 抽样之后对完整顺序做稳定排序。完整规则见[参与选号](/docs/self-hosted/route/quota#参与选号)。
 
-额度排序发生在策略、会话粘性与 softmax 抽样之后，重排的是已经排好的完整顺序。未知值排在已知值后面；`expiry_mode=deprioritize` 的账号整体移到末尾。
-
-额度过滤排在启用、提供该模型与未冷却这三条硬过滤之后。`strict` 会话粘性命中但被额度层排除时，仍然返回 503，不换号。
-
-`route set` 是整条覆盖。只写 `--strategy` 会把这两个额度参数一起恢复默认；要保留额度设置，每次都要显式写出。
+`route set` 是[整条覆盖](/docs/self-hosted/route#整条覆盖)。只写 `--strategy` 会把这两个额度参数一起恢复默认；要保留额度设置，每次都要显式写出。
 
 ```bash
 lax route set glm-4.6 --strategy priority --quota-order usd_desc --quota-min-usd 1

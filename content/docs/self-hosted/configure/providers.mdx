@@ -1,6 +1,6 @@
 ---
 title: 供应商与路由
-description: 内置供应商、自定义地址、八条路线协议与模型列表路径
+description: 内置供应商、自定义地址、八条路报文协议与模型列表路径
 ---
 
 供应商是一家上游服务。`lax provider` 维护它的地址、每条协议的路由、默认协议、凭据头写法与模型列表覆盖。
@@ -56,7 +56,7 @@ lax provider add myco --base-url https://api.example.com \
 
 八条路由参数：
 
-| 参数 | 线协议 |
+| 参数 | 报文协议 |
 | --- | --- |
 | `--anthropic` | anthropic |
 | `--openai` | openai-chat |
@@ -67,7 +67,14 @@ lax provider add myco --base-url https://api.example.com \
 | `--speech` | openai-speech |
 | `--transcriptions` | openai-transcriptions |
 
-路由可以是相对路径，拼在 `--base-url` 之后；也可以是整条地址，直接使用。两种写法可以混用。
+路由有两种写法：相对路径拼在 `--base-url` 之后，整条地址直接使用。两种可以混用。
+
+| 写法 | `--base-url` | 实际请求地址 |
+| --- | --- | --- |
+| 整条地址，例如 `https://api.example.com/v1/chat/completions` | 可省略 | 原样使用 |
+| 相对路径，例如 `/v1/chat/completions` | 必填 | `--base-url` 加路径 |
+| 相对路径，例如 `/chat/completions` | `https://api.example.com/api/paas/v4` | `https://api.example.com/api/paas/v4/chat/completions` |
+| gemini 路由含 `{model}` | 按写法 | `{model}` 替换为模型名，按路径段转义 |
 
 ```bash
 lax provider add bigmodel \
@@ -79,7 +86,7 @@ lax provider add bigmodel \
 
 `--base-url` 可以省略，条件是每条路由与 `--models-path` 都是整条地址。只要有一条是相对路径，就必须给 `--base-url`，否则整次写入被拒绝。
 
-至少声明一条路由。路径的斜杠写法由程序规整：前导斜杠、重复斜杠与末尾斜杠不必纠结。`{model}` 占位符只允许出现在 gemini 路由里，替换时按路径段转义。
+至少声明一条路由。路径的斜杠写法由程序规整：前导斜杠、重复斜杠与末尾斜杠不必纠结。`{model}` 占位符只允许出现在 gemini 路由里。
 
 ## 修改供应商
 
@@ -114,7 +121,7 @@ lax provider rm myco --force
 
 ## 默认协议
 
-`--default-protocol` 的取值是八条线协议。显式值必须落在已声明的路由上。
+`--default-protocol` 的取值是八条报文协议。显式值必须落在已声明的路由上。
 
 不给显式值时，按以下顺序从**已声明的路由**里选：
 
@@ -148,9 +155,9 @@ gemini、systemone、embeddings、speech 与 transcriptions 不会自动成为�
 
 ## 凭据头
 
-默认按线协议生成凭据头：
+默认按报文协议生成凭据头：
 
-| 线协议 | 默认头 |
+| 报文协议 | 默认头 |
 | --- | --- |
 | anthropic | `x-api-key: <key>` |
 | gemini | `x-goog-api-key: <key>` |

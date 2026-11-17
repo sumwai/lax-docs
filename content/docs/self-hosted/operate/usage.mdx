@@ -93,9 +93,7 @@ lax usage --by day --json
 
 ## 额度刷新不计入用量
 
-额度刷新只打上游的只读余额接口，不经过转发路径，因此不写 `requests`，不计入 `usage` 与 `log`，也不写 `route_stats`。
-
-上游额度接口返回的用量汇总是所有客户端的合计，只能在 `lax quota show <账号>` 里查看，不参与本站的用量与花费统计。详见[账号额度](/docs/self-hosted/route/quota)。
+额度刷新只打上游的只读余额接口，不经过转发路径，因此不写 `requests`，也不计入 `usage`、`log` 与 `route_stats`。上游返回的用量汇总是所有客户端的合计，只能在 `lax quota show <账号>` 查看。详见[手动刷新](/docs/self-hosted/route/quota#手动刷新)。
 
 ## 排除探活费用？
 

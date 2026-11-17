@@ -7,12 +7,14 @@ Anthropic SDK 使用 anthropic 协议。base URL 不带 `/v1`，SDK 会自己拼
 
 ## 配置
 
+示例里的模型名要换成 `GET /v1/models` 返回的名字，下面用 `deepseek-v4-pro` 举例。
+
 ```python
 from anthropic import Anthropic
 
 client = Anthropic(base_url="https://larkax.com", api_key="<API Key>")
 msg = client.messages.create(
-    model="claude-sonnet",
+    model="deepseek-v4-pro",
     max_tokens=256,
     messages=[{"role": "user", "content": "hello"}],
 )
@@ -21,7 +23,7 @@ msg = client.messages.create(
 | 项 | 值 |
 | --- | --- |
 | `base_url` | `https://larkax.com` |
-| `api_key` | 入口管理员提供的 API Key |
+| `api_key` | API Key，取得方式见[取得凭据](/docs/public#取得凭据) |
 | `model` | `/v1/models` 返回的模型名 |
 
 ## 验证

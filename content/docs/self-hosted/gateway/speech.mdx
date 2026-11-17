@@ -3,7 +3,7 @@ title: 语音
 description: 语音合成与转写、能力位、方言与路由的配合
 ---
 
-语音有两条线协议：`openai-speech`（文本转语音）与 `openai-transcriptions`（语音转文本）。它们不进对话协议的中间表示。
+语音有两条报文协议：`openai-speech`（文本转语音）与 `openai-transcriptions`（语音转文本）。它们不进对话协议的中间表示。
 
 ## 三条事实要分开
 
@@ -22,12 +22,12 @@ description: 语音合成与转写、能力位、方言与路由的配合
 | POST | `/v1/audio/speech` | openai-speech |
 | POST | `/v1/audio/transcriptions` | openai-transcriptions |
 
-两条都只接受 POST。请求体上限 32 MiB，与对话路径一致。
+两条都只接受 POST。请求体上限与对话路径相同，见[请求体上限](/docs/public/errors#请求体上限)。
 
 ### 合成
 
 ```bash
-curl -s http://127.0.0.1:4567/v1/audio/speech \
+curl -s http://<监听地址>/v1/audio/speech \
   -H 'Content-Type: application/json' \
   -d '{"model":"doubao-seed-tts","input":"你好","voice":"zh_female_xiaohe_uranus_bigtts","response_format":"mp3"}' \
   --output hello.mp3
@@ -40,7 +40,7 @@ curl -s http://127.0.0.1:4567/v1/audio/speech \
 ### 转写
 
 ```bash
-curl -s http://127.0.0.1:4567/v1/audio/transcriptions \
+curl -s http://<监听地址>/v1/audio/transcriptions \
   -F model=doubao-seed-asr \
   -F file=@hello.mp3 \
   -F response_format=json

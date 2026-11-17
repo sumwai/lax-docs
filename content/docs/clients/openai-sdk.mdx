@@ -3,9 +3,11 @@ title: OpenAI SDK
 description: 用 Python 或 Node.js 的 OpenAI SDK 连接 larkax
 ---
 
-OpenAI SDK 使用 openai-chat 协议。把 base URL 指向 `https://larkax.com/v1`，`api_key` 参数填入口 API Key（密钥）。
+OpenAI SDK 使用 openai-chat 协议。把 base URL 指向 `https://larkax.com/v1`，`api_key` 参数填 API Key（密钥），取得方式见[取得凭据](/docs/public#取得凭据)。
 
 ## Python
+
+示例里的模型名要换成 `GET /v1/models` 返回的名字，下面用 `deepseek-v4-pro` 举例。
 
 ```python
 from openai import OpenAI
@@ -45,4 +47,4 @@ curl -s https://larkax.com/v1/chat/completions \
 
 - API Key 与 401：[鉴权与错误](/docs/clients/auth)
 - 其他客户端：[客户端接入](/docs/clients)
-- 模型清单：[客户端接入](/docs/clients)
+- 模型清单：[客户端接入排查](/docs/clients/troubleshooting#模型清单)

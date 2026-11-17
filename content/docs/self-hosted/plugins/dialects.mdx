@@ -7,7 +7,7 @@ description: 操作、方言绑定与上游请求形状
 
 ## 操作
 
-操作名固定，不含线协议名：
+操作名固定，不含报文协议名：
 
 | 操作 | 入站 | 出站 |
 | --- | --- | --- |
@@ -74,7 +74,7 @@ lax model capability add doubao-seed-tts --capability speech --dialect lax/mimo-
 | --- | --- |
 | `ID()` | 方言 ID |
 | `Operation()` | 承载的操作 |
-| `UpstreamWire()` | 上游线协议 |
+| `UpstreamWire()` | 上游报文协议 |
 | `Prepare(Input)` | 编出上游请求 |
 | `Decode(Input, Response)` | 解上游响应 |
 
@@ -100,7 +100,7 @@ lax model capability add doubao-seed-tts --capability speech --dialect lax/mimo-
 | --- | --- | --- |
 | `media` | `body_base64` | 语音 |
 | `text` | `text` | systemone |
-| `json` | 出站线协议形状的 JSON | 对话、向量化、决策 |
+| `json` | 出站报文协议形状的 JSON | 对话、向量化、决策 |
 
 `json` 结果不是入站形状，而是上游那一条协议的形状。宿主再解码成中间表示并按客户端协议编码。
 

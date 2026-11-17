@@ -81,10 +81,10 @@ anthropic 没有 `role=tool`。从 chat 或 responses 解出来的工具结果�
 
 ```json
 // [!code --]
-{"model":"claude-sonnet","thinking":{"type":"enabled","budget_tokens":4096}}
+{"model":"deepseek-v4-pro","thinking":{"type":"enabled","budget_tokens":4096}}
 
 // [!code ++]
-{"model":"gpt-5.1","reasoning":{"effort":"medium"}}
+{"model":"deepseek-v4-pro","reasoning":{"effort":"medium"}}
 ```
 
 这里 `budget_tokens` 4096 落在 `medium` 档；反向编回 anthropic 时只能得到 `budget_tokens: 4096`，无法恢复原始精度。

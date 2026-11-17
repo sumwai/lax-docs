@@ -1,9 +1,9 @@
 ---
-title: 常见问题
-description: 客户端接入失败的检查顺序
+title: 客户端接入排查
+description: 客户端连不上、报 401 或 404 时的检查顺序与边界
 ---
 
-先确认入口返回的状态码，再按客户端类型检查 base URL、API Key 头与模型名。
+本页只处理客户端一侧的接入失败：base URL、请求头、模型名与流式设置。判断状态码含义先看[错误与限制](/docs/public/errors#状态码)；401 的凭据与请求头写法先看[鉴权与错误](/docs/clients/auth)。网关启动、模型同步与账号问题不在本页，见[网关常见问题](/docs/reference/faq)。
 
 ## 状态码
 
@@ -17,19 +17,11 @@ description: 客户端接入失败的检查顺序
 
 ## base URL
 
-| 客户端 | base URL |
-| --- | --- |
-| Claude Code、Anthropic SDK | `https://larkax.com` |
-| Codex、OpenAI SDK | `https://larkax.com/v1` |
-| Gemini SDK | `https://larkax.com` |
+各客户端的 base URL 见[选择客户端](/docs/clients#选择客户端)。
 
 ## 请求头
 
-| 客户端 | 请求头 |
-| --- | --- |
-| OpenAI SDK、Codex | `Authorization: Bearer <API Key>` |
-| Claude Code、Anthropic SDK | `x-api-key: <API Key>` 或 `Authorization: Bearer <API Key>` |
-| Gemini SDK | `x-goog-api-key: <API Key>` |
+三种请求头的完整写法见[三种请求头](/docs/clients/auth#三种请求头)。
 
 ## 模型清单
 

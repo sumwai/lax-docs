@@ -47,19 +47,22 @@ sqlite3 ~/.local/share/lax/lax.db ".backup '/backup/lax-$(date +%F).db'"
 
 ## 外部数据库
 
-使用 PostgreSQL 或 MySQL 时：
+使用 PostgreSQL 或 MySQL 时，配置里只写后端与 DSN：
 
 ```json
 {
-  "addr": "127.0.0.1:4567",
   "driver": "postgres",
   "dsn": "postgres://user:pass@127.0.0.1:5432/lax?sslmode=disable"
 }
 ```
 
-`secret.key` 仍在本机数据目录，不随数据库搬迁。换机器时要单独复制。
+`secret.key` 仍在本机数据目录，不随数据库搬迁。换机器或让多个进程共享同一个外部数据库时，按顺序处理：
 
-多个 lax 进程共享同一个外部数据库时，`secret.key` 必须一致，否则各自加密的凭据无法互相解密。
+1. 把 `secret.key` 复制到新机器的数据目录；
+2. 确认所有 lax 进程的 `driver` 与 `dsn` 指向同一个数据库；
+3. 在每个进程上运行 `lax doctor`，确认数据库可打开、密钥可加载。
+
+检查点：多个进程读同一个数据库时，`secret.key` 必须完全相同，否则各自加密的凭据无法互相解密。
 
 ## 清理
 

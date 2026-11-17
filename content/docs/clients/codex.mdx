@@ -7,10 +7,12 @@ Codex 使用 openai-responses 协议。base URL 要包含 `/v1`，API Key 通过
 
 ## 配置
 
+示例里的模型名要换成 `GET /v1/models` 返回的名字，下面用 `deepseek-v4-pro` 举例。
+
 编辑 `~/.codex/config.toml`：
 
 ```toml
-model = "gpt-5.1"
+model = "deepseek-v4-pro"
 model_provider = "larkax"
 
 [model_providers.larkax]
@@ -38,11 +40,11 @@ codex
 curl -s https://larkax.com/v1/responses \
   -H 'Authorization: Bearer <API Key>' \
   -H 'Content-Type: application/json' \
-  -d '{"model":"gpt-5.1","input":"hi"}'
+  -d '{"model":"deepseek-v4-pro","input":"hi"}'
 ```
 
 ## 下一步
 
 - 其他客户端：[客户端接入](/docs/clients)
 - 协议转换：[协议转换](/docs/self-hosted/gateway/conversion)
-- 排障：[常见问题](/docs/clients/troubleshooting)
+- 排障：[客户端接入排查](/docs/clients/troubleshooting)

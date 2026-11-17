@@ -17,16 +17,27 @@ description: 在自己的主机上运行 larkax，管理上游账号与入口
 
 ## 最短路径
 
+从 [GitHub Releases](https://github.com/sumwai/lax/releases) 下载对应平台的发布包，解压后把 `lax` 放进 `PATH`。核对校验和与版本号的步骤见[安装](/docs/self-hosted/install)。
+
 ```bash
-make build                                             # 生成单文件 ./lax
-./lax init                                             # 配置、数据库、密钥
-./lax account add ds --provider deepseek --key sk-xxx  # 添加一个账号
-./lax model sync --account ds                          # 拉上游模型清单
-./lax model probe --account ds                         # 探活，只有通过的进入选号
-./lax serve                                            # 前台启动网关
+lax init                                             # 配置、数据库、密钥
+lax account add ds --provider deepseek --key sk-xxx  # 添加一个账号
+lax model sync --account ds                          # 拉上游模型清单
+lax model probe --account ds                         # 探活，只有通过的进入选号
+lax serve                                            # 前台启动网关
 ```
 
-客户端连接本机默认地址 `http://127.0.0.1:4567`。对外提供服务时，在前面加 TLS 与认证，或使用[客户端接入](/docs/clients)。
+客户端连接本机入口，默认监听地址在[启动](/docs/self-hosted/gateway#启动)一节。对外提供服务时，在前面加 TLS 与认证，或使用[客户端接入](/docs/clients)。
+
+## 开发或修改
+
+需要 Go 工具链，从源码构建：
+
+```bash
+make build    # 生成带版本号的 ./lax
+```
+
+完整步骤见[安装](/docs/self-hosted/install#从源码构建)。
 
 ## 自部署与直接使用
 

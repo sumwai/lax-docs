@@ -54,6 +54,8 @@ lax route explain glm-4.6 --session demo --seed 42
 
 `route show` 在表格后另打一行 `额度排序：… / 最低折合 USD：…`，`--json` 带 `quota_order` 与 `quota_min_usd`。`route ls` 不显示额度设置。
 
+### 整条覆盖
+
 `route set` 是整条覆盖：没写的参数取内置默认，而不是保留原值。例如原本设置了 `--min-samples 50`，下一次只写 `--strategy rotate`，最小样本会回到 20。
 
 额度两项同样会回到默认。原本设置了 `--quota-order usd_desc`，下一次只写 `--strategy rotate`，额度排序会回到 `off`。

@@ -5,17 +5,9 @@ description: 用 API Key 连接 larkax.com，并按客户端选择配置方式
 
 larkax 的默认入口是 `https://larkax.com`。客户端把 base URL 指向这里，用 API Key 鉴权，不需要在本机安装或启动网关。
 
-## 取得 API Key
+## 凭据与请求头
 
-入口接受三种凭据头，值都是同一个 API Key：
-
-| 客户端 | 请求头 |
-| --- | --- |
-| OpenAI SDK、Codex、curl | `Authorization: Bearer <API Key>` |
-| Anthropic SDK、Claude Code | `x-api-key: <API Key>` 或 `Authorization: Bearer <API Key>` |
-| Gemini SDK | `x-goog-api-key: <API Key>` |
-
-API Key 由网关管理员提供。浏览器直接打开 `https://larkax.com` 时会走 Basic 认证，用管理员给的用户名与密码；API 客户端应使用上面的三种请求头。
+凭据由入口管理员发放，取得方式见[取得凭据](/docs/public#取得凭据)。三种请求头的完整写法见[鉴权与错误](/docs/clients/auth#三种请求头)。
 
 ## 选择客户端
 
@@ -31,6 +23,8 @@ API Key 由网关管理员提供。浏览器直接打开 `https://larkax.com` �
 
 ## 发第一条请求
 
+示例里的模型名要换成 `GET /v1/models` 返回的名字，下面用 `deepseek-v4-pro` 举例。
+
 ```bash
 curl -s https://larkax.com/v1/chat/completions \
   -H 'Authorization: Bearer <API Key>' \
@@ -38,7 +32,7 @@ curl -s https://larkax.com/v1/chat/completions \
   -d '{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-模型名由入口管理员配置。不知道有哪些模型时，查询模型清单：
+不知道有哪些模型时，查询模型清单：
 
 ```bash
 curl -s https://larkax.com/v1/models \
@@ -60,6 +54,6 @@ curl -s https://larkax.com/healthz \
 | --- | --- |
 | 先了解公开入口怎么用 | [公开入口](/docs/public) |
 | 看懂三种 API Key 头与 401 响应 | [鉴权与错误](/docs/clients/auth) |
-| 排查连接失败 | [常见问题](/docs/clients/troubleshooting) |
-| 理解路径与协议 | [线协议](/docs/self-hosted/gateway/protocols) |
+| 排查连接失败 | [客户端接入排查](/docs/clients/troubleshooting) |
+| 理解路径与协议 | [报文协议](/docs/self-hosted/gateway/protocols) |
 | 在本机运行自己的网关 | [自部署](/docs/self-hosted) |

@@ -24,13 +24,7 @@ description: 公开入口的状态码、请求体上限、重试方式与服务�
 
 ## 401 先检查什么
 
-| 客户端 | 正确写法 |
-| --- | --- |
-| OpenAI SDK、Codex、curl | `Authorization: Bearer <API Key>` |
-| Claude Code、Anthropic SDK | `x-api-key: <API Key>` 或 `Authorization: Bearer <API Key>` |
-| Gemini SDK | `x-goog-api-key: <API Key>` |
-
-同一个 API Key 可以放在三种头里，但不要写进 URL 查询参数。浏览器直接打开 `https://larkax.com` 时走 Basic 认证，用户名与密码由管理员提供，和 API Key 不是同一种凭据。
+同一个 API Key 可以放在三种头里，完整写法见[三种请求头](/docs/clients/auth#三种请求头)；不要写进 URL 查询参数。浏览器直接打开 `https://larkax.com` 时走 Basic 认证，与 API Key 是两件事，见[取得凭据](/docs/public#取得凭据)。
 
 ## 请求体上限
 
@@ -55,8 +49,8 @@ description: 公开入口的状态码、请求体上限、重试方式与服务�
 
 | 功能 | 现状 |
 | --- | --- |
-| 自助注册、登录、控制台 | 不提供，API Key 由管理员发放 |
-| 余额、充值、按用户配额页面 | 不提供，入口本身没有多租户计费；上游账号额度只在自部署管理员侧只读监控 |
+| 自助注册、登录、控制台 | 不提供，凭据取得方式见[取得凭据](/docs/public#取得凭据) |
+| 余额、充值、按用户配额页面 | 不提供，入口本身没有多租户计费；配额一词指什么见[配额一词的含义](/docs/reference/glossary#配额)。上游账号额度只在自部署管理员侧只读监控 |
 | 对话或文件存储 | 不提供，只转发请求 |
 | 订阅账号 OAuth 登录 | 不支持，只接受 API Key |
 | 按用户隔离日志 | 不提供，管理员能看到入口的请求记录 |

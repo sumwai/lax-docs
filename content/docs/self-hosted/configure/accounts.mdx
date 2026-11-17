@@ -98,18 +98,7 @@ lax account rm ds
 
 ## 额度监控
 
-`lax quota` 一组命令查看与刷新上游账号的余额、周期结束与到期时间。它只读监控，不分配、不扣减、不计费：
-
-```bash
-lax quota refresh ds
-lax quota show ds
-lax quota show ds --settings
-lax quota ls
-```
-
-目前只支持 CommandCode 与 DeepSeek 两类账号，其它供应商的状态显示「暂不支持」。默认不自动刷新，也不参与选号；要让额度参与选号，在 `route set` 上配置 `--quota-order` 与 `--quota-min-usd`。
-
-额度刷新失败只更新快照状态，不停用账号、不写请求记录。整次刷新失败且其中出现 401 或 403 时也一样；只有真实转发请求收到 401 才停用账号。详见[账号额度](/docs/self-hosted/route/quota)。
+`lax quota` 一组命令只读查看与刷新上游账号的余额、周期结束与到期时间，不分配、不扣减、不计费。目前只支持 CommandCode 与 DeepSeek，默认不自动刷新，也不参与选号。刷新失败只更新快照状态，不停用账号、不写请求记录；只有真实转发请求收到 401 才停用账号。命令、刷新副作用与选号接入见[账号额度](/docs/self-hosted/route/quota)。
 
 ## 优先级与权重不同
 

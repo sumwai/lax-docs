@@ -68,7 +68,7 @@ description: lax.plugin.json 的字段、权限与校验规则
 | `name` | 显示名 |
 | `base_url` | 默认地址 |
 | `auth` | 凭据头声明：`{"header":"X-Api-Key","scheme":"raw"}` |
-| `routes` | 每条线协议的路径 |
+| `routes` | 每条报文协议的路径 |
 | `catalog` | 模型目录文件 |
 | `dialects` | 方言声明文件 |
 
@@ -135,7 +135,18 @@ secret 不走 `options`。凭据由账号命令写入，宿主注入请求头，
 | `models[].operations.<操作>.dialect` | 这条操作使用的方言 ID |
 | `models[].operations.<操作>.capabilities` | 该操作的能力声明 |
 
-能力声明只接受以下字段，值可以是布尔或 `"unknown"`；`formats` 与 `voices` 是字符串数组或 `"unknown"`：
+能力声明只接受以下字段：
+
+| 字段 | 取值 | 说明 |
+| --- | --- | --- |
+| `supported` | 布尔或 `"unknown"` | 这个操作是否受支持 |
+| `streaming` | 布尔或 `"unknown"` | 是否支持流式 |
+| `tools` | 布尔或 `"unknown"` | 是否支持工具调用 |
+| `reasoning` | 布尔或 `"unknown"` | 是否有推理输出 |
+| `json_mode` | 布尔或 `"unknown"` | 是否支持 JSON 模式 |
+| `vision` | 布尔或 `"unknown"` | 是否接受图像输入 |
+| `formats` | 字符串数组或 `"unknown"` | 支持的音频格式 |
+| `voices` | 字符串数组或 `"unknown"` | 支持的音色 |
 
 ```json
 {

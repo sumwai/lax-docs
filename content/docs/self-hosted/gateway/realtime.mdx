@@ -51,7 +51,7 @@ gemini 的 `finishReason=SAFETY` 一类非正常结束按正常结束转给客�
 
 ```bash
 lax model call "写一段 200 字介绍" --model deepseek-v4-pro --stream
-lax model call "hi" --model gemini-2.5-pro --protocol gemini --stream
+lax model call "hi" --model deepseek-v4-pro --protocol gemini --stream
 ```
 
 `model call` 在进程内起临时网关，走的是与外部客户端相同的路径。

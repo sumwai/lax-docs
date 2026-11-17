@@ -61,7 +61,7 @@ lax model show deepseek-v4-pro --account ds
 lax serve
 ```
 
-默认监听 `127.0.0.1:4567`，前台运行，`Ctrl-C` 退出。启动前可以先用 `lax doctor` 检查端口与数据库。对外提供服务时，在前面加 TLS 与认证；默认入口见[客户端接入](/docs/clients)。
+默认监听地址与启动行为在[启动](/docs/self-hosted/gateway#启动)一节。前台运行，`Ctrl-C` 退出。启动前可以先用 `lax doctor` 检查端口与数据库。对外提供服务时，在前面加 TLS 与认证；入口配置见[客户端接入](/docs/clients)。
 
 ## 6. 发第一条请求
 
@@ -77,10 +77,10 @@ lax model call "用一句话介绍自己" --model deepseek-v4-pro
 lax model call "用一句话介绍自己" --model deepseek-v4-pro --debug
 ```
 
-也可以直接打 HTTP 入口。下面是自部署的默认监听地址；使用 `larkax.com` 时把地址换成 `https://larkax.com`，并加 `Authorization: Bearer <API Key>`：
+也可以直接请求 HTTP 入口。下面的 `<监听地址>` 换成本机实际入口，默认值在[启动](/docs/self-hosted/gateway#启动)一节；使用 `larkax.com` 时换成 `https://larkax.com`，并加 `Authorization: Bearer <API Key>`：
 
 ```bash
-curl -s http://127.0.0.1:4567/v1/chat/completions \
+curl -s http://<监听地址>/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"hi"}]}'
 ```

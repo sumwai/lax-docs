@@ -3,7 +3,7 @@ title: 供 Agent 读取
 description: 文档的 Markdown、llms.txt 与推荐读取方式
 ---
 
-文档站为自动读取提供了几个入口。页面内容来自同一个 Markdown 源，不需要解析 HTML。
+本页面向编写抓取脚本或 Agent 的人。读完应能把 `/llms.txt` 与 Markdown 端点接进抓取流程，不需要解析 HTML。
 
 ## 入口
 
@@ -34,7 +34,7 @@ curl -s https://docs.larkax.com/docs/self-hosted/route/policies.md
 ## 事实边界
 
 - 页面只描述当前版本的命令与行为；
-- 版本变化见[版本记录](/docs/releases)；
+- 发布流程与版本规则见[版本与发布](/docs/releases)，逐次改动见 [GitHub Releases](https://github.com/sumwai/lax/releases)；
 - 设计取舍与内部实现不在站点，页面只写可观察的命令、配置与协议行为；
 - 示例输出已脱敏，账号名与 key 是占位。
 

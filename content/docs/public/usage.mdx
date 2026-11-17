@@ -118,7 +118,7 @@ resp = client.chat.completions.create(
 | 语音合成 | `POST /v1/audio/speech` | 需要模型声明 `speech` 能力 |
 | 语音转写 | `POST /v1/audio/transcriptions` | 需要模型声明 `transcription` 能力 |
 
-这些接口是否可用取决于管理员是否为模型声明能力与路由。先用模型清单确认，再按[线协议](/docs/self-hosted/gateway/protocols)里的请求形状调用。
+这些接口是否可用取决于管理员是否为模型声明能力与路由。先用模型清单确认，再按[报文协议](/docs/self-hosted/gateway/protocols)里的请求形状调用。
 
 ## 模型名与别名
 
