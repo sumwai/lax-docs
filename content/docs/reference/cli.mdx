@@ -34,7 +34,7 @@ lax account add -h
 | `account` | 账号：`add`、`ls`、`set`、`rm`、`test`、`enable`、`disable` |
 | `provider` | 供应商：`ls`、`add`、`set`、`unset`、`rm`、`header` |
 | `model` | 模型：`ls`、`show`、`add`、`sync`、`probe`、`alias`、`price`、`capability`、`dialect`、`call`、`decide`、`speak`、`transcribe` |
-| `route` | 选号：`ls`、`show`、`set`、`unset`、`account`、`explain` |
+| `route` | 选号：`ls`、`show`、`set`、`unset`、`account`、`explain`、`policy` |
 | `quota` | 账号额度：`ls`、`show`、`refresh`、`set`、`unset` |
 | `plugin` | 插件：`install`、`update`、`rollback`、`verify`、`logs`、`reload`、`config`、`ls`、`show`、`enable`、`disable`、`rm`、`doctor` |
 | `usage` | 按账号、模型或日期汇总用量 |
@@ -172,6 +172,14 @@ lax route account ls [<账号>]
 lax route account set <账号> [--model <模型>] --weight N
 lax route account unset <账号> [--model <模型>]
 lax route explain <模型> [--session <会话键>] [--seed N]
+lax route policy ls [--all] [--json]
+lax route policy show <id> [--json]
+lax route policy add [条件] [动作]
+lax route policy set <id> [字段 ...]
+lax route policy unset <id> <字段开关 ...>
+lax route policy rm <id>
+lax route policy enable <id> | disable <id>
+lax route policy test --status <码> [--message <文本>] [--explain]
 ```
 
 `route set` 参数：
@@ -191,6 +199,8 @@ lax route explain <模型> [--session <会话键>] [--seed N]
 | `--quota-min-usd` | 不小于 0 的数 | `0` |
 
 `route set` 是整条覆盖，两个额度参数没写也会回到默认值。
+
+`route policy` 只改上游失败之后的处理，不改候选顺序。规则的条件与动作见[失败处理](/docs/self-hosted/route/failure)。
 
 `route show` 的人读输出在表格后多一行 `额度排序：… / 最低折合 USD：…`；`--json` 多 `quota_order` 与 `quota_min_usd` 两个字段。
 
