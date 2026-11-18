@@ -1,0 +1,31 @@
+---
+title: 选择客户端
+description: 按客户端选择 base URL 与 API Key 的放置方式
+---
+
+larkax 的默认入口是 `https://larkax.com`。客户端把 base URL 指向这里，用 API Key 鉴权，不需要在本机安装或启动网关。
+
+## 选择客户端
+
+| 客户端 | 页面 | base URL |
+| --- | --- | --- |
+| Claude Code | [Claude Code](/docs/public/clients/claude-code) | `https://larkax.com` |
+| Codex | [Codex](/docs/public/clients/codex) | `https://larkax.com/v1` |
+| OpenAI SDK | [OpenAI SDK](/docs/public/clients/openai-sdk) | `https://larkax.com/v1` |
+| Anthropic SDK | [Anthropic SDK](/docs/public/clients/anthropic-sdk) | `https://larkax.com` |
+| Gemini SDK | [Gemini SDK](/docs/public/clients/gemini-sdk) | `https://larkax.com` |
+
+所有客户端共用同一套地址与鉴权规则，差异只在 base URL 是否包含 `/v1`，以及客户端使用的请求头。
+
+## 凭据与请求头
+
+凭据由入口管理员发放，取得方式见[取得凭据](/docs/public#取得凭据)。三种请求头的完整写法见[凭据与请求头](/docs/public/auth#三种请求头)。
+
+## 下一步
+
+| 目标 | 页面 |
+| --- | --- |
+| 取得 API Key 并发出第一条请求 | [快速开始](/docs/public/quickstart) |
+| 查看三种 API Key 头与 401 响应 | [凭据与请求头](/docs/public/auth) |
+| 排查连接失败 | [接入排查](/docs/public/troubleshooting) |
+| 理解路径与协议 | [报文协议](/docs/self-hosted/gateway/protocols) |

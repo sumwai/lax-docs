@@ -1,7 +1,6 @@
 {
   "title": "运维",
   "icon": "Wrench",
-  "defaultOpen": true,
   "pages": [
     "usage",
     "logs",

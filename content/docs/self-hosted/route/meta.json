@@ -1,6 +1,5 @@
 {
   "title": "选号",
   "icon": "Shuffle",
-  "defaultOpen": true,
   "pages": ["index", "policies", "failure", "weights", "quota", "explain"]
 }

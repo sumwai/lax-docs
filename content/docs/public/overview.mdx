@@ -1,5 +1,5 @@
 ---
-title: larkax
+title: larkax 是什么
 description: 一个地址接入多家上游、多种协议
 ---
 
@@ -47,7 +47,7 @@ curl -s https://larkax.com/v1/chat/completions \
   -d '{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-API Key 的取得方式见[取得凭据](/docs/public#取得凭据)。第一次使用先看[公开入口快速开始](/docs/public/quickstart)，各客户端的配置见[客户端接入](/docs/clients)。
+API Key 的取得方式见[取得凭据](/docs/public#取得凭据)。第一次使用先看[公开入口快速开始](/docs/public/quickstart)，各客户端的配置见[客户端](/docs/public/clients)。
 
 自部署时，先安装并初始化，再添加自己的上游账号、同步并探活模型，最后启动 `lax serve`。步骤见[自部署](/docs/self-hosted)。
 
@@ -55,13 +55,13 @@ API Key 的取得方式见[取得凭据](/docs/public#取得凭据)。第一次�
 
 | 想做的事 | 页面 |
 | --- | --- |
-| 第一次使用公开入口 `larkax.com` | [快速开始](/docs/public/quickstart)、[使用方式](/docs/public/usage) |
-| 连接 `larkax.com` | [客户端接入](/docs/clients)、[鉴权与错误](/docs/clients/auth) |
+| 第一次使用公开入口 `larkax.com` | [快速开始](/docs/public/quickstart)、[调用接口](/docs/public/usage) |
+| 连接 `larkax.com` | [客户端](/docs/public/clients)、[凭据与请求头](/docs/public/auth) |
 | 在自己的主机上部署 | [自部署](/docs/self-hosted)、[安装](/docs/self-hosted/install) |
-| 理解供应商、账号、模型与请求的关系 | [工作原理](/docs/concepts/how-it-works) |
-| 接入 Claude Code、Codex、SDK | [Claude Code](/docs/clients/claude-code)、[Codex](/docs/clients/codex) |
+| 理解供应商、账号、模型与请求的关系 | [工作原理](/docs/self-hosted/concepts/how-it-works) |
+| 接入 Claude Code、Codex、SDK | [Claude Code](/docs/public/clients/claude-code)、[Codex](/docs/public/clients/codex) |
 | 在自己的主机上选号、接插件或查用量 | [自部署](/docs/self-hosted) |
 | 查看上游账号的余额与到期时间 | [账号额度](/docs/self-hosted/route/quota) |
-| 查每个命令的参数 | [命令行参考](/docs/reference/cli) |
+| 查每个命令的参数 | [命令行参考](/docs/self-hosted/cli) |
 | 看每个版本改了什么 | [GitHub Releases](https://github.com/sumwai/lax/releases) |
 

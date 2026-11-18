@@ -1,6 +1,8 @@
 {
   "title": "版本",
   "icon": "GitBranch",
-  "defaultOpen": true,
-  "pages": ["!index", "changelog"]
+  "description": "版本号规则、发布流程与变更日志",
+  "root": true,
+  "pagesIndex": "index",
+  "pages": ["changelog"]
 }

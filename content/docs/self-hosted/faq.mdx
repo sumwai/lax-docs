@@ -1,9 +1,9 @@
 ---
-title: 网关常见问题
-description: 网关启动、模型、账号、协议与用量的高频问题；客户端接入失败见「客户端接入排查」
+title: 常见问题
+description: 网关启动、模型、账号、协议与用量的高频问题
 ---
 
-本页回答网关自身的高频问题：启动、模型、账号、协议与用量。客户端连不上或报 401/404 时，先看[客户端接入排查](/docs/clients/troubleshooting)。
+本页回答网关自身的高频问题：启动、模型、账号、协议与用量。客户端连不上或报 401/404 时，先看[接入排查](/docs/public/troubleshooting)。
 
 按症状找：
 
@@ -48,7 +48,7 @@ lax log tail -n 20
 lax route explain <模型>
 ```
 
-冷却按账号 + 模型记录。429、5xx 与连接层失败各自的起算时长与上限见[失败如何分类](/docs/concepts/request-lifecycle#失败如何分类)。
+冷却按账号 + 模型记录。429、5xx 与连接层失败各自的起算时长与上限见[失败如何分类](/docs/self-hosted/concepts/request-lifecycle#失败如何分类)。
 
 如果所有候选都在冷却，网关返回 503。等冷却结束，或调整候选账号。
 
@@ -122,7 +122,7 @@ lax account set <账号> --key <新 key>
 
 ## 能放到公网吗
 
-自部署时，网关本身不校验入站凭据，默认只监听回环地址，默认值见[命令行参考](/docs/reference/cli#serve)。对外提供服务前必须加认证与 TLS，并限制访问来源；不要把默认监听地址直接映射到公网。`https://larkax.com` 已在入口加了 Bearer API Key 鉴权与 TLS。
+自部署时，网关本身不校验入站凭据，默认只监听回环地址，默认值见[命令行参考](/docs/self-hosted/cli#serve)。对外提供服务前必须加认证与 TLS，并限制访问来源；不要把默认监听地址直接映射到公网。`https://larkax.com` 已在入口加了 Bearer API Key 鉴权与 TLS。
 
 ## Windows 支持吗
 

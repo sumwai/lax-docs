@@ -1,6 +1,5 @@
 {
   "title": "配置",
   "icon": "Settings",
-  "defaultOpen": true,
   "pages": ["providers", "accounts", "models", "pricing"]
 }

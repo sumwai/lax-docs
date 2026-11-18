@@ -1,0 +1,6 @@
+{
+  "title": "客户端",
+  "icon": "Laptop",
+  "pagesIndex": "index",
+  "pages": ["claude-code", "codex", "openai-sdk", "anthropic-sdk", "gemini-sdk"]
+}

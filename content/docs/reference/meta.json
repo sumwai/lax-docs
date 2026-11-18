@@ -1,6 +1,7 @@
 {
   "title": "参考",
   "icon": "BookOpen",
-  "defaultOpen": true,
-  "pages": ["!index", "cli", "glossary", "faq", "agents"]
+  "description": "术语速查与供 Agent 读取的入口",
+  "root": true,
+  "pages": ["glossary", "agents"]
 }

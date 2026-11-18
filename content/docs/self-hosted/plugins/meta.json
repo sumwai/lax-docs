@@ -1,6 +1,5 @@
 {
   "title": "插件",
   "icon": "Puzzle",
-  "defaultOpen": true,
   "pages": ["index", "install", "manifest", "dialects", "security"]
 }

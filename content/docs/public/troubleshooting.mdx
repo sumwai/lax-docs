@@ -1,9 +1,9 @@
 ---
-title: 客户端接入排查
+title: 接入排查
 description: 客户端连不上、报 401 或 404 时的检查顺序与边界
 ---
 
-本页只处理客户端一侧的接入失败：base URL、请求头、模型名与流式设置。判断状态码含义先看[错误与限制](/docs/public/errors#状态码)；401 的凭据与请求头写法先看[鉴权与错误](/docs/clients/auth)。网关启动、模型同步与账号问题不在本页，见[网关常见问题](/docs/reference/faq)。
+本页只处理客户端一侧的接入失败：base URL、请求头、模型名与流式设置。判断状态码含义先看[错误与限制](/docs/public/errors#状态码)；401 的凭据与请求头写法先看[凭据与请求头](/docs/public/auth)。网关启动、模型同步与账号问题不在本页，见[常见问题](/docs/self-hosted/faq)。
 
 ## 状态码
 
@@ -17,11 +17,11 @@ description: 客户端连不上、报 401 或 404 时的检查顺序与边界
 
 ## base URL
 
-各客户端的 base URL 见[选择客户端](/docs/clients#选择客户端)。
+各客户端的 base URL 见[选择客户端](/docs/public/clients#选择客户端)。
 
 ## 请求头
 
-三种请求头的完整写法见[三种请求头](/docs/clients/auth#三种请求头)。
+三种请求头的完整写法见[三种请求头](/docs/public/auth#三种请求头)。
 
 ## 模型清单
 
@@ -34,6 +34,6 @@ curl -s https://larkax.com/v1/models \
 
 ## 下一步
 
-- 401 的三种响应体：[鉴权与错误](/docs/clients/auth)
-- 按客户端重新配置：[客户端接入](/docs/clients)
+- 401 的三种响应体：[凭据与请求头](/docs/public/auth)
+- 按客户端重新配置：[客户端](/docs/public/clients)
 - 自部署时的日志与自检：[日志](/docs/self-hosted/operate/logs)、[自检](/docs/self-hosted/operate/doctor)

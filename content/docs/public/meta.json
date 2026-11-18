@@ -1,6 +1,8 @@
 {
-  "title": "公开入口",
+  "title": "使用 larkax.com",
   "icon": "Globe",
-  "defaultOpen": true,
-  "pages": ["!index", "quickstart", "usage", "errors", "privacy"]
+  "description": "不用安装，拿 API Key 就能调用托管入口",
+  "root": true,
+  "pagesIndex": "index",
+  "pages": ["overview", "quickstart", "usage", "clients", "auth", "errors", "troubleshooting", "privacy"]
 }
