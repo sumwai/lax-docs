@@ -17,7 +17,7 @@ description: 在自己的主机上运行 larkax，管理上游账号与入口
 
 ## 最短路径
 
-从 [GitHub Releases](https://github.com/sumwai/lax/releases) 下载对应平台的发布包，解压后把 `lax` 放进 `PATH`。核对校验和与版本号的步骤见[安装](/docs/self-hosted/install)。
+从 [GitHub Releases](https://github.com/sumwai/lax/releases) 下载对应平台的发布包，解压后把 `lax` 放进 `PATH`。核对校验和与版本号的步骤见[安装](/self-hosted/install)。
 
 ```bash
 lax init                                             # 配置、数据库、密钥
@@ -27,7 +27,7 @@ lax model probe --account ds                         # 探活，只有通过的�
 lax serve                                            # 前台启动网关
 ```
 
-客户端连接本机入口，默认监听地址在[启动](/docs/self-hosted/gateway#启动)一节。对外提供服务时，在前面加 TLS 与认证，或使用[客户端](/docs/public/clients)。
+客户端连接本机入口，默认监听地址在[启动](/self-hosted/gateway#启动)一节。对外提供服务时，在前面加 TLS 与认证，或使用[客户端](/clients)。
 
 ## 开发或修改
 
@@ -37,7 +37,7 @@ lax serve                                            # 前台启动网关
 make build    # 生成带版本号的 ./lax
 ```
 
-完整步骤见[安装](/docs/self-hosted/install#从源码构建)。
+完整步骤见[安装](/self-hosted/install#从源码构建)。
 
 ## 自部署与直接使用
 
@@ -53,8 +53,8 @@ make build    # 生成带版本号的 ./lax
 
 | 目标 | 页面 |
 | --- | --- |
-| 安装并初始化 | [安装](/docs/self-hosted/install) |
-| 添加账号并发出第一条请求 | [首次配置](/docs/self-hosted/quickstart) |
-| 先理解网关的对象与请求路径 | [核心概念](/docs/self-hosted/concepts) |
-| 配置供应商、账号与模型 | [配置](/docs/self-hosted/configure/providers) |
-| 启动与协议 | [网关](/docs/self-hosted/gateway) |
+| 安装并初始化 | [安装](/self-hosted/install) |
+| 添加账号并发出第一条请求 | [首次配置](/self-hosted/quickstart) |
+| 先理解网关的对象与请求路径 | [核心概念](/self-hosted/concepts) |
+| 配置供应商、账号与模型 | [配置](/self-hosted/configure/providers) |
+| 启动与协议 | [网关](/self-hosted/gateway) |

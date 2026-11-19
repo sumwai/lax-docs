@@ -3,7 +3,7 @@ title: 请求生命周期
 description: 从入站路径到上游响应，网关每一步做什么
 ---
 
-这一页按时间顺序描述一次转发。具体协议字段的映射见[协议转换](/docs/self-hosted/gateway/conversion)，选号算法的细节见[选号策略](/docs/self-hosted/route/policies)。
+这一页按时间顺序描述一次转发。具体协议字段的映射见[协议转换](/self-hosted/gateway/conversion)，选号算法的细节见[选号策略](/self-hosted/route/policies)。
 
 ## 1. 识别入站协议
 
@@ -93,7 +93,7 @@ anthropic、chat、responses、embeddings、speech 与 transcriptions 从请求�
 
 冷却按「账号 + 模型」隔离：一个模型被限流，不影响同一账号的其它模型。
 
-这些默认处理可以被[失败处理](/docs/self-hosted/route/failure)的规则覆盖。命中规则时，重试、冷却、停用与换号按规则执行；规则没命中时，这张表不变。
+这些默认处理可以被[失败处理](/self-hosted/route/failure)的规则覆盖。命中规则时，重试、冷却、停用与换号按规则执行；规则没命中时，这张表不变。
 
 这张表只针对转发请求。额度刷新是另一条只读路径：整次刷新失败且其中出现 401 或 403 时，只把快照状态记为「凭据被拒」，不停用账号，也不写请求记录。
 
@@ -101,5 +101,5 @@ anthropic、chat、responses、embeddings、speech 与 transcriptions 从请求�
 
 单次 HTTP 请求内不会等冷却结束再重试同一个账号。候选都试完就返回 503，把重试交给客户端。这样 429 的短冷却不会被一次请求内的重试放大成更长的冷却。
 
-失败处理规则显式写了 `--retry` 时例外，按规则里的退避重试。等待公式与上限在[动作](/docs/self-hosted/route/failure#动作)一节。
+失败处理规则显式写了 `--retry` 时例外，按规则里的退避重试。等待公式与上限在[动作](/self-hosted/route/failure#动作)一节。
 

@@ -3,77 +3,77 @@ title: 术语
 description: 文档里反复出现的说法，一句话速查
 ---
 
-术语速查，不是教程。每个词只给一句话定义与权威小节；概念与数据流见[工作原理](/docs/self-hosted/concepts/how-it-works)。
+术语速查，不是教程。每个词只给一句话定义与权威小节；概念与数据流见[工作原理](/self-hosted/concepts/how-it-works)。
 
 ## 对象
 
 | 术语 | 一句话 | 详见 |
 | --- | --- | --- |
-| 供应商 | 一家上游服务，包含地址、路由、默认协议与凭据头写法 | [供应商与路由](/docs/self-hosted/configure/providers) |
-| 账号 | 一份上游凭据，挂在某家供应商上 | [账号](/docs/self-hosted/configure/accounts) |
-| 路由 | 某条报文协议对应的上游地址 | [供应商与路由](/docs/self-hosted/configure/providers) |
-| 模型目录 | 上游曾公布或手工声明的模型与元数据 | [模型管理](/docs/self-hosted/configure/models) |
-| 可达性 | 某个账号上的某个模型是否能用于转发 | [模型与账号](/docs/self-hosted/concepts/models-accounts) |
-| 别名 | 客户端写死的模型名指向真实模型名 | [模型与账号](/docs/self-hosted/concepts/models-accounts) |
-| 能力位 | 模型能用于哪类端点：chat、embedding、speech、transcription | [模型与账号](/docs/self-hosted/concepts/models-accounts) |
+| 供应商 | 一家上游服务，包含地址、路由、默认协议与凭据头写法 | [供应商与路由](/self-hosted/configure/providers) |
+| 账号 | 一份上游凭据，挂在某家供应商上 | [账号](/self-hosted/configure/accounts) |
+| 路由 | 某条报文协议对应的上游地址 | [供应商与路由](/self-hosted/configure/providers) |
+| 模型目录 | 上游曾公布或手工声明的模型与元数据 | [模型管理](/self-hosted/configure/models) |
+| 可达性 | 某个账号上的某个模型是否能用于转发 | [模型与账号](/self-hosted/concepts/models-accounts) |
+| 别名 | 客户端写死的模型名指向真实模型名 | [模型与账号](/self-hosted/concepts/models-accounts) |
+| 能力位 | 模型能用于哪类端点：chat、embedding、speech、transcription | [模型与账号](/self-hosted/concepts/models-accounts) |
 
 ## 协议与转发
 
 | 术语 | 一句话 | 详见 |
 | --- | --- | --- |
-| 报文协议 | 客户端与上游之间请求与响应的形状 | [报文协议](/docs/self-hosted/gateway/protocols) |
-| 入站协议 | 客户端连进来时使用的协议，由路径决定 | [报文协议](/docs/self-hosted/gateway/protocols) |
-| 出站协议 | 网关发往上游时使用的协议，由模型与供应商推导 | [报文协议](/docs/self-hosted/gateway/protocols) |
-| 直通 | 入站与出站协议相同，报文原样转发 | [协议转换](/docs/self-hosted/gateway/conversion) |
-| 中间表示 | 跨协议转换时的中立结构 | [协议转换](/docs/self-hosted/gateway/conversion) |
-| 方言 | 某个模型在某条操作上的上游报文形状 | [方言](/docs/self-hosted/plugins/dialects) |
+| 报文协议 | 客户端与上游之间请求与响应的形状 | [报文协议](/self-hosted/gateway/protocols) |
+| 入站协议 | 客户端连进来时使用的协议，由路径决定 | [报文协议](/self-hosted/gateway/protocols) |
+| 出站协议 | 网关发往上游时使用的协议，由模型与供应商推导 | [报文协议](/self-hosted/gateway/protocols) |
+| 直通 | 入站与出站协议相同，报文原样转发 | [协议转换](/self-hosted/gateway/conversion) |
+| 中间表示 | 跨协议转换时的中立结构 | [协议转换](/self-hosted/gateway/conversion) |
+| 方言 | 某个模型在某条操作上的上游报文形状 | [方言](/self-hosted/plugins/dialects) |
 
 ## 选号与状态
 
 | 术语 | 一句话 | 详见 |
 | --- | --- | --- |
-| 选号 | 在一次请求里挑选账号的过程 | [选号](/docs/self-hosted/route) |
-| 候选 | 满足启用、提供该模型、未冷却，以及开启额度过滤时的额度条件的账号 | [请求生命周期](/docs/self-hosted/concepts/request-lifecycle#4-筛候选账号) |
-| 冷却 | 账号在某个模型上失败后被暂时移出候选的时间 | [请求生命周期](/docs/self-hosted/concepts/request-lifecycle) |
-| 会话粘性 | 同一会话键是否固定到同一账号 | [选号策略](/docs/self-hosted/route/policies) |
-| 权重 | 账号在 weighted 与 softmax 里的分流比例 | [账号权重](/docs/self-hosted/route/weights) |
-| 平滑成功率 | 加入最小样本后的成功率，避免零样本排到最后 | [选号策略](/docs/self-hosted/route/policies) |
+| 选号 | 在一次请求里挑选账号的过程 | [选号](/self-hosted/route) |
+| 候选 | 满足启用、提供该模型、未冷却，以及开启额度过滤时的额度条件的账号 | [请求生命周期](/self-hosted/concepts/request-lifecycle#4-筛候选账号) |
+| 冷却 | 账号在某个模型上失败后被暂时移出候选的时间 | [请求生命周期](/self-hosted/concepts/request-lifecycle) |
+| 会话粘性 | 同一会话键是否固定到同一账号 | [选号策略](/self-hosted/route/policies) |
+| 权重 | 账号在 weighted 与 softmax 里的分流比例 | [账号权重](/self-hosted/route/weights) |
+| 平滑成功率 | 加入最小样本后的成功率，避免零样本排到最后 | [选号策略](/self-hosted/route/policies) |
 
 ## 额度
 
 | 术语 | 一句话 | 详见 |
 | --- | --- | --- |
-| 账号额度 | 上游账号的余额与到期时间，只读监控，不是按最终用户分配的配额 | [账号额度](/docs/self-hosted/route/quota) |
-| 额度快照 | 最近一次刷新留下的账号额度事实，一个账号一行 | [手动刷新](/docs/self-hosted/route/quota#手动刷新) |
-| 剩余比例 | 余额 ÷ 总额；总额未知时也算未知 | [CommandCode](/docs/self-hosted/route/quota#commandcode) |
-| 折合 USD | 把原币种按手工汇率折成美元后的值 | [金额与币种](/docs/self-hosted/route/quota#金额与币种) |
-| 监控来源 | `auto`、`commandcode`、`deepseek` 或 `off` | [监控设置](/docs/self-hosted/route/quota#监控设置) |
-| 额度排序 | 策略、粘性与 softmax 之后对完整顺序做的稳定排序 | [参与选号](/docs/self-hosted/route/quota#参与选号) |
-| 最低折合余额 | `--quota-min-usd`，排除已知折合余额低于阈值的账号 | [参与选号](/docs/self-hosted/route/quota#参与选号) |
-| 到期处理 | `warn` 只提示、`deprioritize` 排到末尾、`exclude` 排除 | [到期处理](/docs/self-hosted/route/quota#到期处理) |
-| 限流窗口 | CommandCode 的 5 小时与每周窗口，不是月度总额 | [CommandCode](/docs/self-hosted/route/quota#commandcode) |
-| 上游用量 | 上游统计的所有客户端合计，仅供查看 | [CommandCode](/docs/self-hosted/route/quota#commandcode) |
+| 账号额度 | 上游账号的余额与到期时间，只读监控，不是按最终用户分配的配额 | [账号额度](/self-hosted/route/quota) |
+| 额度快照 | 最近一次刷新留下的账号额度事实，一个账号一行 | [手动刷新](/self-hosted/route/quota#手动刷新) |
+| 剩余比例 | 余额 ÷ 总额；总额未知时也算未知 | [CommandCode](/self-hosted/route/quota#commandcode) |
+| 折合 USD | 把原币种按手工汇率折成美元后的值 | [金额与币种](/self-hosted/route/quota#金额与币种) |
+| 监控来源 | `auto`、`commandcode`、`deepseek` 或 `off` | [监控设置](/self-hosted/route/quota#监控设置) |
+| 额度排序 | 策略、粘性与 softmax 之后对完整顺序做的稳定排序 | [参与选号](/self-hosted/route/quota#参与选号) |
+| 最低折合余额 | `--quota-min-usd`，排除已知折合余额低于阈值的账号 | [参与选号](/self-hosted/route/quota#参与选号) |
+| 到期处理 | `warn` 只提示、`deprioritize` 排到末尾、`exclude` 排除 | [到期处理](/self-hosted/route/quota#到期处理) |
+| 限流窗口 | CommandCode 的 5 小时与每周窗口，不是月度总额 | [CommandCode](/self-hosted/route/quota#commandcode) |
+| 上游用量 | 上游统计的所有客户端合计，仅供查看 | [CommandCode](/self-hosted/route/quota#commandcode) |
 
 ## 配额
 
-配额指按最终用户分配与扣减的多租户额度。lax 不提供多租户与配额分配；管理员侧对上游账号的只读余额与到期时间叫[账号额度](/docs/self-hosted/route/quota)，不是配额。
+配额指按最终用户分配与扣减的多租户额度。lax 不提供多租户与配额分配；管理员侧对上游账号的只读余额与到期时间叫[账号额度](/self-hosted/route/quota)，不是配额。
 
 ## 用量
 
 | 术语 | 一句话 | 详见 |
 | --- | --- | --- |
-| 请求记录 | 每次上游尝试一行的账 | [日志](/docs/self-hosted/operate/logs) |
-| 用量汇总 | 按账号、模型或日期统计 token 与花费 | [用量与花费](/docs/self-hosted/operate/usage) |
-| 供应商级标价 | 供应商 × 模型的一份价格 | [模型定价](/docs/self-hosted/configure/pricing) |
-| 账号覆盖价 | 只对一个账号生效的价格 | [模型定价](/docs/self-hosted/configure/pricing) |
-| 未定价 | 没有价格，不同于免费 | [模型定价](/docs/self-hosted/configure/pricing) |
+| 请求记录 | 每次上游尝试一行的账 | [日志](/self-hosted/operate/logs) |
+| 用量汇总 | 按账号、模型或日期统计 token 与花费 | [用量与花费](/self-hosted/operate/usage) |
+| 供应商级标价 | 供应商 × 模型的一份价格 | [模型定价](/self-hosted/configure/pricing) |
+| 账号覆盖价 | 只对一个账号生效的价格 | [模型定价](/self-hosted/configure/pricing) |
+| 未定价 | 没有价格，不同于免费 | [模型定价](/self-hosted/configure/pricing) |
 
 ## 插件
 
 | 术语 | 一句话 | 详见 |
 | --- | --- | --- |
-| 声明式插件 | 只有数据文件，不执行代码 | [插件](/docs/self-hosted/plugins) |
-| moejs | 进程内 JS 沙箱，承载 hook 方言 | [安全模型](/docs/self-hosted/plugins/security) |
-| hook 方言 | 在沙箱里编请求、解响应的方言 | [方言](/docs/self-hosted/plugins/dialects) |
-| 活动版本 | 当前生效的插件版本，可回滚 | [安装与升级](/docs/self-hosted/plugins/install) |
+| 声明式插件 | 只有数据文件，不执行代码 | [插件](/self-hosted/plugins) |
+| moejs | 进程内 JS 沙箱，承载 hook 方言 | [安全模型](/self-hosted/plugins/security) |
+| hook 方言 | 在沙箱里编请求、解响应的方言 | [方言](/self-hosted/plugins/dialects) |
+| 活动版本 | 当前生效的插件版本，可回滚 | [安装与升级](/self-hosted/plugins/install) |
 

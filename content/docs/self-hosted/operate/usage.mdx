@@ -82,7 +82,7 @@ lax usage --by day --json
 
 ## 花费口径
 
-花费 = 各用量 × 对应单价之和。价格取值顺序与单位见[模型定价](/docs/self-hosted/configure/pricing)。
+花费 = 各用量 × 对应单价之和。价格取值顺序与单位见[模型定价](/self-hosted/configure/pricing)。
 
 几个容易混淆的点：
 
@@ -93,7 +93,7 @@ lax usage --by day --json
 
 ## 额度刷新不计入用量
 
-额度刷新只打上游的只读余额接口，不经过转发路径，因此不写 `requests`，也不计入 `usage`、`log` 与 `route_stats`。上游返回的用量汇总是所有客户端的合计，只能在 `lax quota show <账号>` 查看。详见[手动刷新](/docs/self-hosted/route/quota#手动刷新)。
+额度刷新只打上游的只读余额接口，不经过转发路径，因此不写 `requests`，也不计入 `usage`、`log` 与 `route_stats`。上游返回的用量汇总是所有客户端的合计，只能在 `lax quota show <账号>` 查看。详见[手动刷新](/self-hosted/route/quota#手动刷新)。
 
 ## 排除探活费用？
 
@@ -105,6 +105,6 @@ lax usage --by day --json
 
 ## 下一步
 
-- 单条记录与错误：[日志](/docs/self-hosted/operate/logs)
-- 补价格：[模型定价](/docs/self-hosted/configure/pricing)
+- 单条记录与错误：[日志](/self-hosted/operate/logs)
+- 补价格：[模型定价](/self-hosted/configure/pricing)
 

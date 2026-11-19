@@ -206,9 +206,9 @@ lax route policy test --status <码> [--message <文本>] [--explain]
 | `--quota-order` | `off`、`expiry_asc`、`expiry_desc`、`ratio_desc`、`ratio_asc`、`usd_desc`、`usd_asc` | `off` |
 | `--quota-min-usd` | 不小于 0 的数 | `0` |
 
-`route set` 是[整条覆盖](/docs/self-hosted/route#整条覆盖)，两个额度参数没写也会回到默认值。
+`route set` 是[整条覆盖](/self-hosted/route#整条覆盖)，两个额度参数没写也会回到默认值。
 
-`route policy` 只改上游失败之后的处理，不改候选顺序。规则的条件与动作见[失败处理](/docs/self-hosted/route/failure)。
+`route policy` 只改上游失败之后的处理，不改候选顺序。规则的条件与动作见[失败处理](/self-hosted/route/failure)。
 
 `route show` 的人读输出在表格后多一行 `额度排序：… / 最低折合 USD：…`；`--json` 多 `quota_order` 与 `quota_min_usd` 两个字段。
 
@@ -244,7 +244,7 @@ lax quota unset <账号> [字段]
 | 部分失败 | 只保留失败端点的旧值 |
 | 跳过 | 不支持的供应商或 `source=off` 的账号跳过，不算失败 |
 | 退出码 | 任一支持的账号整次刷新失败（凭据被拒或查询失败）为 1；部分端点失败不算 |
-| 副作用 | 见[手动刷新](/docs/self-hosted/route/quota#手动刷新) |
+| 副作用 | 见[手动刷新](/self-hosted/route/quota#手动刷新) |
 
 `quota set` 参数：
 
@@ -261,7 +261,7 @@ lax quota unset <账号> [字段]
 
 `quota unset` 的字段是 `source`、`fx_rate`、`auto_refresh`、`expiry_mode`、`expiry_days` 与 `base_url`。写字段时只恢复那一项；不写字段时删掉整行设置。
 
-完整说明见[账号额度](/docs/self-hosted/route/quota)。
+完整说明见[账号额度](/self-hosted/route/quota)。
 
 ### plugin
 

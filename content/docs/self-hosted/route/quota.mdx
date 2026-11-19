@@ -9,7 +9,7 @@ description: 只读查看上游账号的余额与到期时间，并按需参与�
 
 默认关闭自动刷新，也不参与选号。不配置时，选号行为与没有额度功能时一致。
 
-本页前半是运维操作：查看、刷新与设置监控；后半是「额度如何参与选号」，这部分也出现在[选号](/docs/self-hosted/route)页。
+本页前半是运维操作：查看、刷新与设置监控；后半是「额度如何参与选号」，这部分也出现在[选号](/self-hosted/route)页。
 
 ## 支持范围
 
@@ -196,7 +196,7 @@ lax route set glm-4.6 --strategy priority --quota-order usd_desc --quota-min-usd
 
 额度过滤发生在启用、提供该模型与未冷却这三条硬过滤之后。`strict` 会话粘性命中但被额度层排除时，仍然返回 503，不换号。
 
-`route set` 是[整条覆盖](/docs/self-hosted/route#整条覆盖)。只写 `--strategy` 会把 `quota_order` 与 `quota_min_usd` 一起恢复默认；要保留额度设置，每次都要显式写出这两项。
+`route set` 是[整条覆盖](/self-hosted/route#整条覆盖)。只写 `--strategy` 会把 `quota_order` 与 `quota_min_usd` 一起恢复默认；要保留额度设置，每次都要显式写出这两项。
 
 ## 自动刷新
 
@@ -266,6 +266,6 @@ Authorization: Bearer <key>
 
 ## 下一步
 
-- 选号策略与默认值：[选号策略](/docs/self-hosted/route/policies#额度参与选号)
-- 预演输出里的额度列：[预演选号](/docs/self-hosted/route/explain#有额度快照时)
-- 命令参数全集：[命令行参考](/docs/self-hosted/cli#quota)
+- 选号策略与默认值：[选号策略](/self-hosted/route/policies#额度参与选号)
+- 预演输出里的额度列：[预演选号](/self-hosted/route/explain#有额度快照时)
+- 命令参数全集：[命令行参考](/self-hosted/cli#quota)

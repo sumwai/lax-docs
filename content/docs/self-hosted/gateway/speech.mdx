@@ -22,7 +22,7 @@ description: 语音合成与转写、能力位、方言与路由的配合
 | POST | `/v1/audio/speech` | openai-speech |
 | POST | `/v1/audio/transcriptions` | openai-transcriptions |
 
-两条都只接受 POST。请求体上限与对话路径相同，见[请求体上限](/docs/public/errors#请求体上限)。
+两条都只接受 POST。请求体上限与对话路径相同，见[请求体上限](/errors#请求体上限)。
 
 ### 合成
 
@@ -68,7 +68,7 @@ lax model dialect ls doubao-seed-tts
 | `lax/mimo-chat-speech@1` | 合成 | chat 形状 |
 | `lax/mimo-chat-asr@1` | 转写 | chat 形状 |
 
-插件可以注册自己的方言，见[插件](/docs/self-hosted/plugins)。
+插件可以注册自己的方言，见[插件](/self-hosted/plugins)。
 
 ## 路由
 

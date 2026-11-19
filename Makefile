@@ -8,7 +8,6 @@ DOCS_PORT ?= 3000
 # 构建时决定页面文案，start 时 robots.txt 与 llms.txt 还要再读一次，
 # 所以 docs-preview 的两步都带上同一组值。
 export DOCS_SITE_NAME ?= larkax
-export DOCS_SITE_TAGLINE ?= 默认入口 larkax.com，也可以自部署
 export DOCS_SITE_DESCRIPTION ?= 客户端把 Claude Code、Codex、OpenAI、Anthropic 与 Gemini SDK 指向同一个地址；八种线协议可进可出，其中四种对话协议之间可以互相转换。默认使用 larkax.com，也可以在自己的主机上部署同一套网关。
 export DOCS_SITE_LOCALE ?= zh-CN
 # 侧边栏底部的仓库地址；留空时只显示主题切换。

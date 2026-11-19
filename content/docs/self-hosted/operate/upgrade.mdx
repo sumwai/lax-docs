@@ -3,7 +3,7 @@ title: 升级
 description: 升级一台已部署实例的步骤与回滚
 ---
 
-本页只讲升级一台已经部署的实例。版本号规则、发布流程与自动部署见[版本与发布](/docs/releases)。
+本页只讲升级一台已经部署的实例。版本号规则、发布流程与自动部署见[版本与发布](/releases)。
 
 ## 升级步骤
 
@@ -11,7 +11,7 @@ description: 升级一台已部署实例的步骤与回滚
 2. 核对 SHA-256；
 3. 运行 `./lax version`，确认与 tag 一致；
 4. 停掉 `serve`；
-5. 备份配置、数据库、密钥与插件目录，清单见[备份](/docs/self-hosted/operate/data#备份)；
+5. 备份配置、数据库、密钥与插件目录，清单见[备份](/self-hosted/operate/data#备份)；
 6. 替换 `lax` 二进制；
 7. 运行 `lax doctor`；
 8. 启动 `serve`；
@@ -19,15 +19,15 @@ description: 升级一台已部署实例的步骤与回滚
 
 数据库结构由程序自动迁移。升级前备份仍是必要步骤，尤其是跨多个 MINOR 版本时。
 
-发布包与源码构建的版本号写法不同：发布包是 `lax 0.2.1`，tag 之后还有提交的源码构建会带提交数与哈希。对应规则见[版本号注入](/docs/releases#版本号注入)。
+发布包与源码构建的版本号写法不同：发布包是 `lax 0.2.1`，tag 之后还有提交的源码构建会带提交数与哈希。对应规则见[版本号注入](/releases#版本号注入)。
 
 ## 预发布版本
 
-带 `-` 的 tag 是预发布，例如 `v0.3.0-rc.1`，会创建 Release，但不会自动部署到生产主机。手动安装时同样核对 `lax version`。正式 tag 与预发布 tag 的区别见[自动化](/docs/releases#自动化)。
+带 `-` 的 tag 是预发布，例如 `v0.3.0-rc.1`，会创建 Release，但不会自动部署到生产主机。手动安装时同样核对 `lax version`。正式 tag 与预发布 tag 的区别见[自动化](/releases#自动化)。
 
 ## 回滚
 
-自动部署失败时，发布工作流会回滚二进制；流程见[生产部署](/docs/releases#生产部署)。手动回滚：
+自动部署失败时，发布工作流会回滚二进制；流程见[生产部署](/releases#生产部署)。手动回滚：
 
 ```bash
 cp ~/deploy/lax.previous ~/.local/bin/lax
@@ -38,6 +38,6 @@ systemctl --user restart lax.service
 
 ## 下一步
 
-- 版本号、发布流程与自动部署：[版本与发布](/docs/releases)
+- 版本号、发布流程与自动部署：[版本与发布](/releases)
 - 每个版本改了什么：以 [GitHub Releases](https://github.com/sumwai/lax/releases) 为准
-- 备份清单：[数据与备份](/docs/self-hosted/operate/data#备份)
+- 备份清单：[数据与备份](/self-hosted/operate/data#备份)

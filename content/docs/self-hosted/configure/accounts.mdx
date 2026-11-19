@@ -98,11 +98,11 @@ lax account rm ds
 
 ## 额度监控
 
-`lax quota` 一组命令只读查看与刷新上游账号的余额、周期结束与到期时间，不分配、不扣减、不计费。目前只支持 CommandCode 与 DeepSeek，默认不自动刷新，也不参与选号。刷新失败只更新快照状态，不停用账号、不写请求记录；只有真实转发请求收到 401 才停用账号。命令、刷新副作用与选号接入见[账号额度](/docs/self-hosted/route/quota)。
+`lax quota` 一组命令只读查看与刷新上游账号的余额、周期结束与到期时间，不分配、不扣减、不计费。目前只支持 CommandCode 与 DeepSeek，默认不自动刷新，也不参与选号。刷新失败只更新快照状态，不停用账号、不写请求记录；只有真实转发请求收到 401 才停用账号。命令、刷新副作用与选号接入见[账号额度](/self-hosted/route/quota)。
 
 ## 优先级与权重不同
 
 `--priority` 是账号属性，供 `priority` 策略排序，数值越小越先试。权重是选号策略的输入，只给 `weighted` 与 `softmax` 使用。改了策略不一定需要改优先级。
 
-详见[选号](/docs/self-hosted/route)。
+详见[选号](/self-hosted/route)。
 

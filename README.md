@@ -36,7 +36,9 @@ larkax 的公开文档内容。仓库里只有 Markdown / MDX 页面与各级 `m
 
 四个分类都进切换器，进入任一分类后侧边栏只显示这个分类的页面，切换器显示当前分类。`reference` 没有 `index.mdx`，切换器指向它的第一个页面（术语）。
 
-文档站的顶层没有 `index.mdx`，`/docs` 会直接跳到第一个分类的首页（现在是 `/docs/public`），所以总览页放在 `public/overview.mdx`。
+文档页直接挂在站点根路径，`public/` 这个目录名不进地址：`public/quickstart.mdx` 是 `/quickstart`，`public/index.mdx` 就是站点根地址 `/`。其余分类保留目录名，`self-hosted/install.mdx` 是 `/self-hosted/install`。
+
+所以根地址显示的就是 `public/index.mdx`（公开入口），总览页放在 `public/overview.mdx` 是 `/overview`。站内链接写页面地址本身，不带 `/docs` 前缀。
 
 新增一级分类时，在 `content/docs/meta.json` 的 `pages` 里写目录名，并在该目录的 `meta.json` 写 `title`、`icon`、`description` 与 `root: true`，有首页时再加 `pagesIndex: "index"`。
 
@@ -54,13 +56,12 @@ make docs-preview  # 构建后以生产模式启动
 
 ## 品牌与语言
 
-站点名称、首页文案与语言由框架的 `site.config.ts` 读取环境变量得到，取值写在本仓库的 `Makefile` 里作为默认值：
+站点名称与语言由框架的 `site.config.ts` 读取环境变量得到，取值写在本仓库的 `Makefile` 里作为默认值：
 
 | 变量 | 作用 |
 | --- | --- |
 | `DOCS_SITE_NAME` | 浏览器标题、导航标题、OG 图、`llms.txt` 与 `robots.txt` 的头部 |
-| `DOCS_SITE_TAGLINE` | 首页标题上方的小字；置空则不显示 |
-| `DOCS_SITE_DESCRIPTION` | 首页正文与 meta description |
+| `DOCS_SITE_DESCRIPTION` | meta description |
 | `DOCS_SITE_LOCALE` | `<html lang>` 与内置 UI 文案；以 `zh` 开头时用中文文案 |
 | `DOCS_SITE_GITHUB` | 侧边栏底部的仓库地址；置空则只显示主题切换 |
 
@@ -69,3 +70,5 @@ make docs-preview  # 构建后以生产模式启动
 ## 部署
 
 站点构建与发布说明在框架仓库的 `README.md`。远程拉取内容时用 `DOCS_CONTENT_REPO=<owner>/larkax-docs` 指向本仓库，`DOCS_CONTENT_REF` 写 tag 固定版本。
+
+页面地址在站点根路径，旧地址 `/docs/public/quickstart` 等由框架做永久跳转，内容里不必再关心。

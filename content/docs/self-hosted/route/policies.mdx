@@ -149,15 +149,15 @@ softmax 用无放回抽样排出完整顺序，因此故障转移顺序也不是
 | `--quota-order` | 在策略、会话粘性与 softmax 之后做稳定排序：`off`、`expiry_asc`、`expiry_desc`、`ratio_desc`、`ratio_asc`、`usd_desc`、`usd_asc` | `off` |
 | `--quota-min-usd` | 已知折合余额低于这个 USD 值的账号不参与选号；`0` 关闭 | `0` |
 
-`--quota-min-usd` 只排除折合余额已知且低于阈值的账号，从未刷新、汇率未知或余额未知的账号一律保留。`--quota-order` 在策略、会话粘性与 softmax 抽样之后对完整顺序做稳定排序。完整规则见[参与选号](/docs/self-hosted/route/quota#参与选号)。
+`--quota-min-usd` 只排除折合余额已知且低于阈值的账号，从未刷新、汇率未知或余额未知的账号一律保留。`--quota-order` 在策略、会话粘性与 softmax 抽样之后对完整顺序做稳定排序。完整规则见[参与选号](/self-hosted/route/quota#参与选号)。
 
-`route set` 是[整条覆盖](/docs/self-hosted/route#整条覆盖)。只写 `--strategy` 会把这两个额度参数一起恢复默认；要保留额度设置，每次都要显式写出。
+`route set` 是[整条覆盖](/self-hosted/route#整条覆盖)。只写 `--strategy` 会把这两个额度参数一起恢复默认；要保留额度设置，每次都要显式写出。
 
 ```bash
 lax route set glm-4.6 --strategy priority --quota-order usd_desc --quota-min-usd 1
 ```
 
-额度事实、刷新与供应商差异见[账号额度](/docs/self-hosted/route/quota)。
+额度事实、刷新与供应商差异见[账号额度](/self-hosted/route/quota)。
 
 ## 参数适用范围
 
@@ -178,7 +178,7 @@ lax route set glm-4.6 --strategy priority --quota-order usd_desc --quota-min-usd
 
 ## 下一步
 
-- 权重怎么设：[账号权重](/docs/self-hosted/route/weights)
-- 额度怎么查、怎么参与选号：[账号额度](/docs/self-hosted/route/quota)
-- 看一次具体选择：[预演选号](/docs/self-hosted/route/explain)
+- 权重怎么设：[账号权重](/self-hosted/route/weights)
+- 额度怎么查、怎么参与选号：[账号额度](/self-hosted/route/quota)
+- 看一次具体选择：[预演选号](/self-hosted/route/explain)
 

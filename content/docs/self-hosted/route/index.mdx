@@ -78,7 +78,7 @@ lax route explain glm-4.6 --session demo --seed 42
 
 ## 与失败处理的关系
 
-选号决定先试谁，失败处理决定一次失败之后做什么。[失败处理](/docs/self-hosted/route/failure)的规则可以重试同一个账号、冷却账号、停用账号，或者直接换号与返回。没有规则命中时，仍是按状态码冷却并换下一个候选的默认行为。
+选号决定先试谁，失败处理决定一次失败之后做什么。[失败处理](/self-hosted/route/failure)的规则可以重试同一个账号、冷却账号、停用账号，或者直接换号与返回。没有规则命中时，仍是按状态码冷却并换下一个候选的默认行为。
 
 ## 与额度的关系
 
@@ -88,9 +88,9 @@ lax route explain glm-4.6 --session demo --seed 42
 
 ## 继续读
 
-- 五种策略与参数：[选号策略](/docs/self-hosted/route/policies)
-- 账号权重的两个作用域：[账号权重](/docs/self-hosted/route/weights)
-- 额度怎么查、怎么参与选号：[账号额度](/docs/self-hosted/route/quota)
-- 上游失败后的重试、冷却、停用与换号：[失败处理](/docs/self-hosted/route/failure)
-- 预演输出怎么看：[预演选号](/docs/self-hosted/route/explain)
+- 五种策略与参数：[选号策略](/self-hosted/route/policies)
+- 账号权重的两个作用域：[账号权重](/self-hosted/route/weights)
+- 额度怎么查、怎么参与选号：[账号额度](/self-hosted/route/quota)
+- 上游失败后的重试、冷却、停用与换号：[失败处理](/self-hosted/route/failure)
+- 预演输出怎么看：[预演选号](/self-hosted/route/explain)
 
