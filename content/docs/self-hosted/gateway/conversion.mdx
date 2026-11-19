@@ -1,100 +1,166 @@
 ---
-title: 协议转换
-description: 直通、中间表示与跨协议时的字段取舍
+title: 跨协议转换与请求头
+description: 直通与中间表示转换、关键字段映射、凭据头与请求头透传规则
 ---
 
-入站与有效出站协议相同时，lax 走直通：请求体、响应体与流式帧原样转发。不同时，先解码成中间表示，再编码成目标协议。
+在实际部署中，客户端使用的协议往往与上游供应商不一致。
 
-## 直通
+例如用 `anthropic` 客户端接入仅提供 `openai-chat` 或 `openai-responses` 的供应商，或为自建供应商 `myco` 配置专属的鉴权头与会话头。
 
-直通不代表完全无改动。网关仍会：
+网关在转发层统一解决协议映射与请求头组装问题。
 
-- 替换上游地址与路径；
-- 移除或重写凭据头；
-- 注入供应商声明的附加请求头；
-- 记录请求、响应与用量。
+## 直通与中间表示转换
 
-请求体与响应体的字节不做重新编码。因此上游返回的独有字段在直通时能完整到达客户端。
+当入站协议与模型的有效出站协议相同时，网关走直通路径，原样转发请求体、响应体与流式帧。
 
-## 中间表示
+由于字节不做重新编码，上游返回的协议独有字段在直通时可以完整到达客户端。
 
-中间表示只保留各协议能对齐的字段：
+直通并非完全不做任何改动，转发过程中网关仍会执行四项操作：
 
-| 类型 | 字段 |
+- 替换上游地址与请求路径
+- 移除客户端凭据头并注入选中账号的凭据头
+- 注入供应商声明的附加请求头
+- 记录请求状态、耗时与 token 用量
+
+当入站协议与有效出站协议不同（且均属于四条对话协议）时，网关先将请求解码为中间表示，再编码为目标协议。
+
+中间表示只保留四条对话协议能够对齐的核心语义：
+
+| 层级 | 包含内容 |
 | --- | --- |
-| Request | `Model`、`System`、`Messages`、`Tools`、`ToolChoice`、`Thinking`、`ParallelToolCalls`、`MaxTokens`、`Temperature`、`TopP`、`Stop`、`Stream` |
-| Message | 角色 + 内容块 |
-| Block | `text`、`image`、`tool_use`、`tool_result`、`thinking` |
-| Response | `ID`、`Model`、`Blocks`、`StopReason`、`Usage` |
+| 请求参数 | 模型名、系统指令、消息列表、工具定义与选择策略、思考配置、并行工具调用开关、采样参数、流式开关 |
+| 消息结构 | 发送者角色与有序内容块列表 |
+| 内容块类型 | 文本、图片、工具调用、工具结果、思考内容 |
+| 响应结果 | 响应标识、模型名、输出内容块、结束原因、用量统计 |
 
-## 同一概念落在哪里
+## 关键字段映射与退化边界
 
-| 概念 | anthropic | openai-chat | openai-responses |
+同一对话概念在不同协议中的字段落点不同：
+
+| 概念 | `anthropic` | `openai-chat` | `openai-responses` |
 | --- | --- | --- | --- |
-| system | 顶层 `system` | 首条 `role=system` 消息 | 顶层 `instructions` |
-| 对话中间的 system | 消息角色 `system` | 消息角色 `system` | 折进 `instructions`，位置丢失 |
-| tool_use | assistant 消息里的 `tool_use` 块 | `tool_calls[]` | `function_call` item |
-| tool_result | user 消息里的 `tool_result` 块 | 独立 `role=tool` 消息 | `function_call_output` item |
-| 思考内容 | assistant 消息里的 `thinking` 块 | assistant 的 `reasoning_content` | output 里的 `reasoning` item |
+| 系统指令 | 顶层 `system` | 首条 `role=system` 消息 | 顶层 `instructions` |
+| 对话中间的 system | `role=system` 消息 | `role=system` 消息 | 折入顶层 `instructions`，原位置丢失 |
+| 工具调用 | `assistant` 消息中的 `tool_use` 块 | `tool_calls[]` | `function_call` 条目 |
+| 工具结果 | `user` 消息中的 `tool_result` 块 | 独立的 `role=tool` 消息 | `function_call_output` 条目 |
+| 思考内容 | `assistant` 消息中的 `thinking` 块 | `assistant` 的 `reasoning_content` | 输出中的 `reasoning` 条目 |
 | 结束原因 | `end_turn` / `max_tokens` / `tool_use` / `stop_sequence` | `stop` / `length` / `tool_calls` | `completed` / `incomplete` |
-| 用量 | `input_tokens`、`output_tokens`、缓存读写 | `prompt_tokens`、`completion_tokens`、`cached_tokens` | `input_tokens`、`output_tokens`、`cached_tokens` |
+| 用量统计 | `input_tokens`、`output_tokens`、缓存读写 | `prompt_tokens`、`completion_tokens`、`cached_tokens` | `input_tokens`、`output_tokens`、`cached_tokens` |
 
-## 会丢位置的字段
+协议各自独有的扩展字段不会跨协议透传，部分语义在转换时会发生折叠或退化：
 
-| 字段 | 结果 |
+| 字段或特性 | 转换结果 |
 | --- | --- |
-| 对话中间的 system 消息 | 转到 responses 或 gemini 时折进顶层 instructions，原位置丢失 |
-| `developer` 角色 | 当作 system 处理，转到 responses 或 gemini 时折进 instructions |
-| responses 的 `encrypted_content` | 不搬运；下游 responses 只写 `summary` |
-| gemini 的内置工具 | 不搬运 |
-| gemini 的思考内容 | 不搬运；请求侧的 `thinkingConfig` 仍会转换 |
-| `tools[].strict` | 只在两条 openai 协议之间保留 |
-| anthropic 的 `allowed_tools.mode=any` | 跨协议后退成 `auto` |
+| 对话中间的 `system` 与 `developer` 角色 | 转为 `openai-responses` 或 `gemini` 时折入顶层指令，原位置丢失 |
+| `openai-responses` 的 `encrypted_content` | 不跨协议映射；转发到下游 `openai-responses` 时仅保留 `summary` |
+| `gemini` 的内置工具（如 `googleSearch`） | 不跨协议映射 |
+| `gemini` 的思考内容 | 响应侧思考文本不映射；请求侧 `thinkingConfig` 仍参与转换 |
+| `tools[].strict` | 仅在 `openai-chat` 与 `openai-responses` 之间保留 |
+| `anthropic` 的 `allowed_tools.mode=any` | 跨协议后退化为 `auto` |
 
-## 工具结果
+<Callout type="info" title="消息折叠与模型名回显">
+`anthropic` 没有 `role=tool`。
 
-anthropic 没有 `role=tool`。从 chat 或 responses 解出来的工具结果会折叠成一条 `role=user` 消息里的 `tool_result` 块；同一个 assistant 消息之后的多条结果按原顺序并进同一条 user 消息。
+从 `openai-chat` 或 `openai-responses` 解码出的工具结果，会按原顺序折叠进一条 `role=user` 消息的 `tool_result` 内容块中；若其后紧跟普通用户文本消息，网关会合并为同一条用户消息，避免部分上游把连续 `user` 消息判为非法请求。
 
-## 连续用户内容
+此外，模型别名仅在路由方向生效，上游返回的响应体中 `model` 字段始终保持上游真实模型名。
+</Callout>
 
-工具结果之后紧跟的普通用户消息会并成同一条消息，避免某些上游把连续 user 消息判成非法。
+请求侧的思考配置在不同协议中粒度不同，网关按以下规则折算。
 
-## 思考配置
+客户端未传入思考配置时，网关不会主动补充默认字段，避免上游因不识别参数而返回 `400`：
 
-请求侧的思考配置在四种协议里名称不同：
-
-| 目标 | 来源：预算 | 来源：档位 |
+| 目标协议 | 来源为预算（token 数） | 来源为档位 |
 | --- | --- | --- |
-| anthropic | `budget_tokens` 直传 | `minimal` 1024、`low` 2048、`medium` 4096、`high` 8192 |
-| chat / responses | 预算 ≥ 8192 → `high`，≥ 2048 → `medium`，否则 `low` | `reasoning_effort` 直传 |
-| gemini | `thinkingBudget` 直传 | 按 anthropic 的档位映射折成预算 |
+| `anthropic` | `budget_tokens` 直接透传 | `minimal` → `1024`、`low` → `2048`、`medium` → `4096`、`high` → `8192` |
+| `openai-chat` / `openai-responses` | 预算 `>= 8192` → `high`，`>= 2048` → `medium`，其余 → `low` | `reasoning_effort` 直接透传 |
+| `gemini` | `thinkingBudget` 直接透传 | 按 `anthropic` 的档位规则折算为预算 |
 
-客户端没给这类字段时，网关一个都不写。上游对不认识的参数会直接 400。
-
-## 响应里的模型名
-
-别名只影响请求方向。响应里的 `model` 字段保持上游返回的真名，不重写成客户端请求的别名。
-
-## 截图式的字段对照
-
-只搬运映射表里的字段。表外字段不会“尽量猜一个落点”：
+以下示例展示从 `anthropic` 转换到 `openai-responses` 时思考配置的映射差异：
 
 ```json
 // [!code --]
-{"model":"deepseek-v4-pro","thinking":{"type":"enabled","budget_tokens":4096}}
+{"model":"deepseek/deepseek-v4.1-flash","thinking":{"type":"enabled","budget_tokens":4096}}
 
 // [!code ++]
-{"model":"deepseek-v4-pro","reasoning":{"effort":"medium"}}
+{"model":"deepseek/deepseek-v4.1-flash","reasoning":{"effort":"medium"}}
 ```
 
-这里 `budget_tokens` 4096 落在 `medium` 档；反向编回 anthropic 时只能得到 `budget_tokens: 4096`，无法恢复原始精度。
+上例中 `budget_tokens` 为 `4096` 时落在 `medium` 档。
 
-## 不支持转换的情况
+若反向编码回 `anthropic`，也只能恢复为 `budget_tokens: 4096`，无法保留原始的任意精确数值。
 
-| 情况 | 结果 |
+不支持跨协议转换的场景（例如 `systemone`、`openai-embeddings` 或语音协议与对话协议互转，以及目标协议缺少流编码器但客户端请求流式响应）会在发送上游请求前直接返回 `400`。
+
+## 凭据头与客户端头透传
+
+发往上游前，网关先移除客户端携带的凭据头，再按选中账号注入上游凭据。
+
+未显式覆盖时，凭据头格式由报文协议决定：
+
+| 报文协议 | 默认凭据头 |
 | --- | --- |
-| systemone 与对话协议互转 | 400 |
-| 向量化与对话协议互转 | 400 |
-| 语音与对话协议互转 | 400 |
-| 流式但没有目标协议的流编码器 | 400，发送上游请求之前 |
+| `anthropic` | `x-api-key: <key>` |
+| `gemini` | `x-goog-api-key: <key>` |
+| `openai-chat` / `openai-responses` / `openai-embeddings` / `openai-speech` / `openai-transcriptions` | `Authorization: Bearer <key>` |
+| `systemone` | 按供应商声明或默认推导 |
 
+若自建供应商 `myco` 使用非标准鉴权头，可通过供应商配置覆盖默认值。
+
+`--auth-scheme` 支持 `raw`（直接写入 key）、`bearer`（写入 `Bearer <key>`）与 `bearer-semicolon`（写入 `Bearer;<key>`）；声明覆盖后不再发送协议默认凭据头：
+
+```bash
+lax provider set myco --auth-header X-Api-Key --auth-scheme raw
+lax provider set myco --auth-header Authorization --auth-scheme bearer
+```
+
+为防止将客户端的 `Host`、`Cookie` 或客户端自身凭据误传给上游，网关仅在**入站与有效出站协议相同（直通）**时透传以下白名单请求头，且单条头的值超过 8 KiB 时整条丢弃：
+
+| 白名单请求头 | 说明 |
+| --- | --- |
+| `anthropic-beta` | `anthropic` 的 beta 功能开关 |
+| `anthropic-version` | `anthropic` API 版本 |
+| `openai-beta` | OpenAI beta 功能开关 |
+| `openai-organization` | OpenAI 组织 ID |
+| `openai-project` | OpenAI 项目 ID |
+
+<Callout type="warn" title="跨协议与敏感头拦截">
+跨协议转发时一律不透传客户端白名单头（例如将 `anthropic-beta` 发给 `openai-chat` 上游会导致 `400`）。
+
+客户端的 `Authorization`、`x-api-key`、`x-goog-api-key`、`Cookie`、逐跳头与 `x-lax-session` 在任何情况下都不会透传。
+</Callout>
+
+## 供应商附加头与叠加顺序
+
+若上游除凭据外还要求携带特定请求头（例如会话标识或自定义环境头），可在供应商维度声明附加头，并通过 `--protocol` 限定仅对特定路由生效：
+
+```bash
+lax provider header set myco x-opencode-session '{session}' --protocol openai-chat
+lax provider header ls myco
+lax provider header unset myco x-opencode-session --protocol openai-chat
+```
+
+附加头的值支持三种整值模板（模板必须占满整个值，不做局部字符串替换）；展开结果包含回车、换行或 NUL 字符时跳过发送：
+
+| 模板写法 | 展开规则 |
+| --- | --- |
+| `{session}` | 本次请求的会话键；缺失时每次请求生成随机 UUID |
+| `{model}` | 本次请求的真实模型名；拉取模型列表等无模型请求时不发送该头 |
+| `{env:NAME}` | 环境变量 `NAME` 的值；未设置或为空时不发送该头 |
+
+发往上游前，请求头按以下顺序依次写入，同名头由后写入者覆盖：
+
+1. 网关基础头（`Content-Type`、`Accept`、主机头等）。
+2. 凭据头（供应商覆盖配置或协议默认值）。
+3. 客户端白名单透传头（仅直通时生效，例如客户端传入 `anthropic-version` 覆盖默认值）。
+4. 供应商附加头（同名时覆盖客户端头，允许覆盖凭据头）。
+5. 插件方言逐请求头（最后生效；禁止设置凭据头、`Cookie`、逐跳头与 `proxy-*` 等保留头）。
+
+请求记录不落库请求头与响应头，凭据头也不会出现在日志或输出中。
+
+手工验证时，传入 `--debug` 可让 `lax model call` 将实际请求地址与上游状态输出到 stderr，同样不会打印凭据头。
+
+## 下一步
+
+- 查看各协议错误体与流式断流处理：[错误格式与流式断流处理](/self-hosted/gateway/errors)
+- 了解请求日志与隐私脱敏规则：[用量统计与请求日志](/self-hosted/operate/logs-usage)

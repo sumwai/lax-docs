@@ -1,108 +1,107 @@
 ---
 title: 账号
-description: 添加、查看、换凭据、启停与账号级状态
+description: 添加、查看、更换 API Key、测试连通性与启停上游账号
 ---
 
-账号是一份上游凭据，挂在某家供应商上。同一家供应商可以添加多个账号，用优先级与选号策略决定先用哪一个。
+账号代表一份挂载在指定供应商上的上游 `API Key`。
 
-## 添加
+同一家供应商下可以添加多个账号（如 `acct-a`、`acct-b`），通过优先级与选号策略实现分流和容灾。
 
-```bash
-lax account add ds --provider deepseek --key sk-xxx
-lax account add ds2 --provider deepseek --key sk-yyy --priority 200
-```
+## 什么时候需要管理账号
 
-| 参数 | 说明 | 默认 |
-| --- | --- | --- |
-| `--provider` | 供应商名，必填 | — |
-| `--key` | 上游 API Key（密钥）；`-` 从标准输入读，留空读 `LAX_KEY` | — |
-| `--models` | 逗号分隔的模型名，写目录并标这个账号可用 | 空 |
-| `--priority` | 同模型多账号时的优先级，小的先试 | `100` |
-| `--name` | 账号名，也可以作为位置参数 | — |
+- **首次接入或扩充账号池**：将新的上游 `API Key` 接入 `deepseek`、`myco` 等供应商。
+- **凭据轮换或失效恢复**：上游 `API Key` 过期或触发 `401` 自动停用后，原位更换新密钥。
+- **隔离排障或下线**：临时停用某个异常账号而不删除其历史用量与模型探测记录。
 
-`--models` 是手填的初始值，不带上游长度与价格。常规路径是 `model sync` 加 `model probe`。
-
-账号名是命令里的主键，改名需要删除后重建。删除会保留历史请求记录，但会丢掉这个账号的探活结果、选号统计与权重。
-
-## 查看
+## 最短配置命令
 
 ```bash
+# 添加账号（--priority 默认 100，数值越小越先尝试）
+lax account add acct-a --provider deepseek --key sk-xxx
+lax account add acct-b --provider deepseek --key sk-yyy --priority 200
+
+# 查看账号列表与模型状态
 lax account ls
-lax account ls --json
+
+# 更换 API Key（原地更新，保留探活结果与历史记录）
+lax account set acct-a --key sk-new
+
+# 测试账号连通性
+lax account test acct-a
+
+# 临时停用与重新启用
+lax account disable acct-a
+lax account enable acct-a
+
+# 删除账号（无二次确认）
+lax account rm acct-a
 ```
 
-人读输出列出账号、供应商、地址、有效协议、模型数量、优先级与状态。模型列区分“可用”（探活通过）与“已登记”（同步、手填或探活留下的全部行）。
-
-空模型列表不等于支持全部模型。没有可用模型的账号不参与选号。
-
-## 换凭据
-
-不要删除账号再重建。`account set` 保留账号名、探活结果、协议发现与请求记录归属：
+为避免明文 `API Key` 留在 shell 历史中，添加或更新时可从标准输入读取或使用环境变量 `LAX_KEY`：
 
 ```bash
-lax account set ds --key sk-new
-lax account set ds --key - < key.txt
-LAX_KEY=sk-new lax account set ds
+lax account add acct-a --provider deepseek --key - < key.txt
+LAX_KEY=sk-new lax account set acct-a
 ```
 
-旧凭据留下的冷却与连续失败次数在同一个事务里清零，账号重新启用。`update` 是 `set` 的同义词，帮助里只列 `set`。
+## 工作方式与进阶参数
 
-模型单价不在账号上，因此 `account add` 与 `account set` 不接受价格参数；改价用 `model price set`。
+### 1. 添加与查看
 
-## 测试连通性
+`lax account add` 的常用参数如下：
 
-```bash
-lax account test ds
-```
+- `--provider`：所属供应商名称（必填）。
+- `--key`：上游 `API Key`；写 `-` 从标准输入读取，省略时从 `LAX_KEY` 环境变量读取。
+- `--priority`：同模型多账号下的优先级，默认 `100`，数值越小越优先。
+- `--models`：逗号分隔的初始模型列表，直接写入模型目录并标为可用（不带上下文长度与价格元数据，常规场景建议改用 `lax model sync` 与 `probe`）。
 
-它分两段：
+`lax account ls` 输出中的「模型」列区分**可用**（探活通过或手工声明）与**已登记**（同步或历史留下的全部记录）。
 
-1. `GET` 模型列表，证明地址与凭据头可用，不消耗 token；
-2. 列表 2xx 后再发一条 `max_tokens=1` 的请求，证明凭据真的能调用。
+<Callout type="info">
+空的模型列表不代表「支持所有模型」。
 
-有的上游列表接口是公开的，任何 key 都返回 200，所以只看列表判不出 key 好坏。列表接口不存在（404/405）、被拒绝（403）或连不上时，直接进入第二段。
+没有任何可用模型的账号不会参与网关选号；添加账号后请继续执行[模型同步与探活](/self-hosted/configure/models)。
+</Callout>
 
-第二段用的模型取账号模型列表第一项；为空时用 `default` 并在备注里说明。两段都通过才判正常。
+### 2. 原地更换 API Key（不要删号重建）
 
-`account test` 判定的是账号与凭据，不是某个模型。某个模型到底能不能用，由 `model probe` 决定。
+账号名是数据库中的主键，不支持直接改名。
 
-## 启用与停用
+删除账号会连带清理它的模型可达性、权重与选号统计（历史请求日志仍保留，账号列显示为 `-`）。
 
-```bash
-lax account disable ds
-lax account enable ds
-```
+因此密钥过期或轮换时，务必使用 `lax account set`（别名 `update`）：网关会在同一事务内更新加密密钥、清除旧凭据留下的冷却与连续失败计数，并自动重新启用账号。
 
-停用后不再参与选号，也不出现在 `/v1/models` 的提供者里。`enable` 会清掉全部模型的冷却。
+### 3. 两段式连通性测试（`lax account test`）
 
-401 会自动停用账号：凭据被拒时继续尝试只会把错误刷满候选池。`account test` 成功或 `account enable` 可以恢复。403 不停用，因为常见原因是套餐或模型权限，不是 key 失效。
+`lax account test <账号>` 用于验证账号凭据本身是否有效，分两段执行：
 
-## 删除
+1. 先 `GET` 上游模型列表，验证地址与凭据头格式（不消耗 token）；
+2. 若列表返回 2xx，再发送一条 `max_tokens=1` 的最小对话请求，验证凭据确实具备调用权限（部分上游的模型列表接口对任意密钥均返回 200）。
 
-```bash
-lax account rm ds
-```
+若上游列表接口不存在（404/405）、被拒绝（403）或连接失败，则直接跳过第一段进入第二段。
 
-`account rm` 不再二次确认，也不接受 `--yes`。删除账号会连带删除它的模型可达性、权重与选号统计；请求记录保留，账号列显示为 `-`。
+第二段默认取该账号列表中的第一个模型（列表为空时使用 `default`）。
 
-## 账号级覆盖
+<Callout type="info">
+`lax account test` 只验证「凭据能不能调通」，不逐个验证模型权限。
 
-| 事实 | 查看 | 修改 |
-| --- | --- | --- |
-| 模型可达性 | `model show <模型> --account <账号>` | `model probe`、`model add` |
-| 模型协议 | `model show` | `model probe` 发现或 `model add --protocol` |
-| 模型价格 | `model price ls <模型> --account <账号>` | `model price set --account` |
-| 账号权重 | `route account ls` | `route account set` |
-| 额度快照 | `quota show <账号>` | `quota refresh <账号>` |
-| 额度监控设置 | `quota show <账号> --settings` | `quota set <账号>` |
+某个具体模型能不能用，由 `lax model probe` 决定。
+</Callout>
 
-## 额度监控
+### 4. 自动停用与手动启停
 
-`lax quota` 一组命令只读查看与刷新上游账号的余额、周期结束与到期时间，不分配、不扣减、不计费。目前只支持 CommandCode 与 DeepSeek，默认不自动刷新，也不参与选号。刷新失败只更新快照状态，不停用账号、不写请求记录；只有真实转发请求收到 401 才停用账号。命令、刷新副作用与选号接入见[账号额度](/self-hosted/route/quota)。
+- **401 自动停用**：真实转发过程中收到上游 `401` 时，网关自动停用该账号，避免失效凭据反复拖慢选号。更换有效密钥或执行 `lax account test` 成功、`lax account enable` 后可恢复。
+- **403 不停用**：`403` 通常源于套餐权限或地区限制而非密钥失效，网关默认原样返回，不会停用账号。
+- **`lax account disable / enable`**：手动停用后账号立即退出选号且不再出现在 `/v1/models` 中；重新启用时会清除该账号下所有模型的冷却状态。
 
-## 优先级与权重不同
+### 5. `priority` 与权重、账号级覆盖的区别
 
-`--priority` 是账号属性，供 `priority` 策略排序，数值越小越先试。权重是选号策略的输入，只给 `weighted` 与 `softmax` 使用。改了策略不一定需要改优先级。
+- **`--priority`（账号属性）**：仅用于 `priority` 选号策略排序，数值越小越靠前。
+- **权重（选号属性）**：仅用于 `weighted` 与 `softmax` 策略，通过 `lax route account set` 配置（详见[选号](/self-hosted/route)）。
+- **账号级覆盖**：协议（`lax model add --protocol`）、单价（`lax model price set --account`）、额度监控设置（`lax quota set`）均支持按账号独立覆盖，详见[工作原理](/self-hosted/concepts/how-it-works#声明的能力与账号级覆盖)与[账号额度](/self-hosted/route/quota)。
 
-详见[选号](/self-hosted/route)。
+## 下一步
 
+- 同步与探测可用模型：[模型管理](/self-hosted/configure/models)
+- 为账号配置选号策略：[选号](/self-hosted/route)
+- 监控账号余额与到期时间：[账号额度](/self-hosted/route/quota)

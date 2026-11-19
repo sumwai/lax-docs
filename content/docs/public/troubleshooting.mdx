@@ -1,39 +1,88 @@
 ---
-title: 接入排查
-description: 客户端连不上、报 401 或 404 时的检查顺序与边界
+title: 故障排查
+description: API Key 传入方式、常见 HTTP 状态码解法与快速自查命令
 ---
 
-本页只处理客户端一侧的接入失败：base URL、请求头、模型名与流式设置。判断状态码含义先看[错误与限制](/errors#状态码)；401 的凭据与请求头写法先看[凭据与请求头](/auth)。网关启动、模型同步与账号问题不在本页，见[常见问题](/self-hosted/faq)。
+请求失败时，先确认 `API Key` 是否放在当前协议对应的请求头中，再结合网关返回的 HTTP 状态码与 `Base URL` 配置定位原因。
 
-## 状态码
+## 正确传入 API Key
 
-| 现象 | 先检查 |
+网关在接入层校验 `API Key`，校验通过后才会进入模型路由与转发流程。
+
+同一个 `API Key` 可以放在以下三种请求头之一中，按客户端所属协议选择：
+
+| 请求头 | 适用客户端 |
 | --- | --- |
-| 401 | API Key 是否完整，以及是否放进了当前客户端使用的那一种头 |
-| 404 | base URL 是否多了或少了 `/v1`；模型名是否在 `/v1/models` 里 |
-| 400，提示模型不存在 | 客户端写的名字不在模型清单里；用 `/v1/models` 核对 |
-| 503 | 入口没有可用候选账号；稍后重试或联系入口管理员 |
-| 流式没有输出 | 客户端与入站协议是否匹配；先用非流式请求验证同一模型 |
+| `Authorization: Bearer $OPENAI_API_KEY` | OpenAI SDK、Codex、`curl` |
+| `x-api-key: $OPENAI_API_KEY` | Anthropic SDK、Claude Code |
+| `x-goog-api-key: $OPENAI_API_KEY` | Gemini SDK 与兼容客户端 |
 
-## base URL
+- 请将 `API Key` 放入请求头，不要拼接到 URL 查询参数中。
+- 环境变量 `$OPENAI_API_KEY` 中只存放原始字符串，不要包含 `Bearer ` 前缀。
+- 浏览器直接访问 [https://larkax.com](https://larkax.com) 时使用的是 Basic 认证用户名与密码，与 API 调用使用的 `API Key` 属于两套凭据，不能混用。
 
-各客户端的 base URL 见[选择客户端](/clients#选择客户端)。
+## 常见状态码与解法
 
-## 请求头
+| 状态码 | 常见现象 | 原因与解法 |
+| --- | --- | --- |
+| `401` | 提示缺少或错误的凭据 | 核对 `$OPENAI_API_KEY` 是否完整无空格，以及是否放在当前协议对应的请求头中。 |
+| `400` | 提示参数错误或模型不存在 | 检查请求体 JSON 格式、模型名拼写与协议必填字段（如 `anthropic` 协议必填 `max_tokens`）。修正后再发，不要原样重试。 |
+| `404` | 返回路径不存在或找不到模型 | 核对 `Base URL` 是否多写或漏写 `/v1`（对照[客户端速查表](/clients#客户端速查表)），并通过 `GET /v1/models` 确认模型在当前可用清单中。 |
+| `429` | 提示请求过于频繁或触发限流 | 上游供应商触发限流。网关已在单次请求内尝试切换其他可用线路，若仍返回 `429`，请退避等待后重试。 |
+| `503` | 提示当前无可用线路 | 模型存在但所有候选线路当前均不可用，建议稍后重试或改用 `/v1/models` 中的其他模型。 |
 
-三种请求头的完整写法见[三种请求头](/auth#三种请求头)。
+其他较少见的状态码说明：
 
-## 模型清单
+- `403`：上游供应商拒绝当前账号权限，请联系网关管理员核查模型权限。
+- `413`：请求体超过 32 MiB 上限，请缩减上下文文本、附件或音频体积。
+- `500` / `502`：网关或上游临时返回异常，可稍后重试；持续出现时请联系网关管理员。
+
+## 3 条快速自查命令
+
+按顺序执行以下三条命令，可以快速区分问题是出在凭据、客户端配置还是本地流式网络环境。
+
+### 1. 检查环境变量与模型清单
+
+验证 `$OPENAI_API_KEY` 是否有效，并确认目标模型名称在可用清单中（该请求为只读查询，不产生对话计费）：
 
 ```bash
-curl -s https://larkax.com/v1/models \
-  -H 'Authorization: Bearer <API Key>'
+curl -i -s https://larkax.com/v1/models \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
 ```
 
-两个只读接口不写请求记录，也不影响冷却与选号。停用账号提供的模型不会出现在清单里；冷却中的模型仍会出现。
+返回 `HTTP/2 200` 且列表中包含目标模型，说明网络连通且 `API Key` 有效。
+
+若返回 `401`，请重新检查环境变量内容。
+
+### 2. 用最小非流式请求测试对话
+
+排除客户端插件与流式解析干扰，确认基础对话路径完全正常：
+
+```bash
+curl -s https://larkax.com/v1/chat/completions \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"deepseek/deepseek-v4.1-flash","messages":[{"role":"user","content":"hi"}]}'
+```
+
+如果这条命令能正常返回回复而客户端依然报错，问题通常在于客户端的 `Base URL`（是否多写或漏写 `/v1`）或请求头配置。
+
+### 3. 测试流式输出连通性
+
+确认本地代理或网络链路不会缓冲或提前截断 SSE 长连接：
+
+```bash
+curl -N https://larkax.com/v1/chat/completions \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"deepseek/deepseek-v4.1-flash","stream":true,"messages":[{"role":"user","content":"数到三"}]}'
+```
+
+若能逐行实时看到 `data: {...}` 分片输出，说明流式链路正常。
+
+若长时间无输出或一次性吐出全部内容，请检查本地代理工具的响应缓冲设置。
 
 ## 下一步
 
-- 401 的三种响应体：[凭据与请求头](/auth)
-- 按客户端重新配置：[客户端](/clients)
-- 自部署时的日志与自检：[日志](/self-hosted/operate/logs)、[自检](/self-hosted/operate/doctor)
+- 对照修改客户端配置：[客户端配置](/clients)
+- 回到 5 分钟入门步骤：[快速开始](/quickstart)

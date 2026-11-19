@@ -1,105 +1,120 @@
 ---
 title: 首次配置
-description: 从一个新数据库到第一条成功请求
+description: 5 分钟内完成账号接入、模型同步与第一条网关请求
 ---
 
-下面假设已经完成[安装](/self-hosted/install)。示例里的账号名 `ds` 是自取的，后续命令使用同一个名字。
+本页假设已完成[安装](/self-hosted/install)与 `lax init`。
 
-## 1. 加一个账号
+以下步骤以内置供应商 `deepseek`、账号名 `acct-a` 与模型 `deepseek/deepseek-v4.1-flash` 为例，全程在同一台主机上跑通。
 
-```bash
-lax account add ds --provider deepseek --key sk-xxx
-```
-
-`--provider` 必须是已经存在的供应商。内置供应商包含 anthropic、openai、deepseek、moonshot、kimi、openrouter、ollama、commandcode 与 google-gemini；也可以用 `lax provider add` 新建。
-
-不想把 key 写进 shell 历史时，从标准输入读：
+## 1. 添加上游账号
 
 ```bash
-lax account add ds --provider deepseek --key - < key.txt
+lax account add acct-a --provider deepseek --key sk-xxx
 ```
 
-账号凭据加密入库，命令行输出只显示掩码。
+`acct-a` 是自取的账号名，`deepseek` 是网关内置的供应商名。
 
-## 2. 同步上游模型清单
+若不想把 `API Key` 留在 shell 历史中，可改用标准输入或环境变量 `LAX_KEY`（详见[账号](/self-hosted/configure/accounts)）。
+
+## 2. 同步并探测模型
+
+从上游拉取模型清单并写入本地目录：
 
 ```bash
-lax model sync --account ds
+lax model sync --account acct-a
 ```
 
-这一步只调用上游的模型列表接口，把模型名写进本地目录，并把该账号标成允许使用这些模型。它不发送对话请求，也不证明模型真的可用。
+`sync` 只拉取模型名，不验证账号权限。
 
-## 3. 探活
+接着运行探活，只有探测通过的模型才会进入选号池（可用 `--limit 3` 先小范围验证）：
 
 ```bash
-lax model probe --account ds
+lax model probe --account acct-a
 ```
 
-探活会逐模型发送一条最小请求：对话模型使用 `max_tokens=1`，决策模型使用最小决策请求。只有探测通过的模型才进入选号。
-
-先小范围验证：
+查看当前账号下已就绪的模型：
 
 ```bash
-lax model probe --account ds --limit 3
+lax model ls --account acct-a
 ```
 
-## 4. 查看可用模型
+详见[模型管理](/self-hosted/configure/models)。
 
-```bash
-lax model ls --account ds
-```
-
-输出里每个模型带上提供它的账号、协议、冷却状态与价格。要确认一个具体账号上的事实：
-
-```bash
-lax model show deepseek-v4-pro --account ds
-```
-
-## 5. 启动网关
+## 3. 启动网关
 
 ```bash
 lax serve
 ```
 
-默认监听地址与启动行为在[启动](/self-hosted/gateway#启动)一节。前台运行，`Ctrl-C` 退出。启动前可以先用 `lax doctor` 检查端口与数据库。对外提供服务时，在前面加 TLS 与认证；入口配置见[客户端](/clients)。
+网关默认监听 `127.0.0.1:4567`，在前台持续运行（按 `Ctrl-C` 退出）。
 
-## 6. 发第一条请求
+如需修改监听地址，可临时传入 `--addr 127.0.0.1:4568` 或在 `config.json` 中配置（详见[网关](/self-hosted/gateway)）。
 
-另开一个终端，用内置的 `model call` 验证，不必先配置客户端：
+<Callout type="warn">
+`lax serve` 默认仅监听本机回环地址且不校验入站凭据。
 
-```bash
-lax model call "用一句话介绍自己" --model deepseek-v4-pro
-```
+对外提供服务前，必须在前方挂载反向代理、TLS 与访问控制。
+</Callout>
 
-如果要看选号过程与实际请求地址：
+## 4. 发送第一条请求
 
-```bash
-lax model call "用一句话介绍自己" --model deepseek-v4-pro --debug
-```
-
-也可以直接请求 HTTP 入口。下面的 `<监听地址>` 换成本机实际入口，默认值在[启动](/self-hosted/gateway#启动)一节；使用 `larkax.com` 时换成 `https://larkax.com`，并加 `Authorization: Bearer <API Key>`：
+另开一个终端，直接向默认地址 `127.0.0.1:4567` 发送 OpenAI 兼容格式请求：
 
 ```bash
-curl -s http://<监听地址>/v1/chat/completions \
+curl -s http://127.0.0.1:4567/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"hi"}]}'
+  -d '{
+    "model": "deepseek/deepseek-v4.1-flash",
+    "messages": [{"role": "user", "content": "Say hello in one sentence."}]
+  }'
 ```
 
-## 7. 看记录
+预期返回标准 OpenAI 对话响应 JSON（字段已做精简示意）：
+
+```json
+{
+  "id": "chatcmpl-...",
+  "object": "chat.completion",
+  "model": "deepseek/deepseek-v4.1-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I am ready to help you."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 14,
+    "completion_tokens": 9,
+    "total_tokens": 23
+  }
+}
+```
+
+也可以不经过 HTTP 客户端，直接用 CLI 发起一次快速验证：
+
+```bash
+lax model call "用一句话介绍自己" --model deepseek/deepseek-v4.1-flash --debug
+```
+
+## 5. 查看请求记录与用量
 
 ```bash
 lax log tail
 lax usage
 ```
 
-`log tail` 给出每次尝试的协议、账号、状态、token 与耗时；`usage` 按账号、模型或日期汇总。
+`lax log tail` 输出每次转发尝试的协议、命中账号、HTTP 状态、token 数与耗时。
 
-## 接下来
+`lax usage` 按账号、模型或日期汇总用量与估算花费（详见[用量与日志](/self-hosted/operate/logs-usage)）。
 
-| 目标 | 页面 |
-| --- | --- |
-| 配 Claude Code、Codex 或 SDK | [客户端](/clients) |
-| 多账号切换顺序 | [选号](/self-hosted/route) |
-| 接自定义供应商 | [供应商与路由](/self-hosted/configure/providers) |
-| 模型价格与花费估算 | [模型定价](/self-hosted/configure/pricing) |
+## 下一步
 
+- 接入 Claude Code、Codex 或各类 SDK：[客户端](/clients)
+- 理解供应商、账号、模型与生命周期：[工作原理](/self-hosted/concepts/how-it-works)
+- 添加自建供应商或更多账号：[供应商与路由](/self-hosted/configure/providers)、[账号](/self-hosted/configure/accounts)
+- 配置多账号选号策略与失败冷却：[选号](/self-hosted/route)、[失败处理](/self-hosted/route/failure)

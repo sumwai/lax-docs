@@ -1,5 +1,6 @@
 {
   "title": "选号",
   "icon": "Shuffle",
-  "pages": ["index", "policies", "failure", "weights", "quota", "explain"]
+  "pagesIndex": "index",
+  "pages": ["policies", "quota", "failure"]
 }

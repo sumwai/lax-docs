@@ -1,5 +1,6 @@
 {
   "title": "插件",
   "icon": "Puzzle",
-  "pages": ["index", "install", "manifest", "dialects", "security"]
+  "pagesIndex": "index",
+  "pages": ["manifest", "security"]
 }

@@ -1,97 +1,135 @@
 ---
 title: 安装
-description: 获取单文件二进制、初始化配置与确认本机环境
+description: 获取单文件二进制或从源码编译，初始化本地数据目录与环境
 ---
 
-larkax 以单个 Go 二进制发布，命令名是 `lax`。不需要 cgo、Node.js 或外部数据库；SQLite 是缺省后端，数据库文件就是普通本地文件。
+`lax` 以单个 Go 二进制发布，不依赖 cgo、Node.js 或外部数据库。
 
-## 两种安装方式
+默认使用本地 SQLite 文件保存状态。
 
-| 方式 | 适合 | 命令 |
-| --- | --- | --- |
-| 下载发布包 | 自部署 | 从 [GitHub Releases](https://github.com/sumwai/lax/releases) 下载对应平台包，解压后把 `lax` 放进 `PATH` |
-| 从源码构建 | 开发或修改 | `make build`，产物是仓库根目录下的 `./lax` |
+## 方式一：下载预编译二进制（推荐）
 
-发布包覆盖 Linux 与 macOS 的 amd64、arm64。Windows 不在发布范围：`serve` 与 `plugin reload` 依赖 Unix 信号。
+预编译发布包覆盖 Linux 与 macOS 的 `amd64` 和 `arm64` 架构。
 
-同一 Release 附带 `checksums.txt`，下载后先核对：
+<Callout type="info">
+Windows 不在预编译发布范围：`lax serve` 与 `lax plugin reload` 依赖 Unix 信号。
+
+在 Windows 上只能自行编译，且部分信号相关功能不可用。
+</Callout>
+
+1. 从 [GitHub Releases](https://github.com/sumwai/lax/releases) 下载对应平台与架构的压缩包及 `checksums.txt`。
+2. 核对校验和并解压，将 `lax` 放进 `PATH` 覆盖的目录（如 `/usr/local/bin`）：
 
 ```bash
 sha256sum -c checksums.txt
-./lax version
+tar -xzf lax_*.tar.gz
+sudo install -m 0755 lax /usr/local/bin/lax
 ```
 
-`lax version` 的输出必须与发布 tag 一致。例如 tag 是 `v0.2.1`，输出应为 `lax 0.2.1`。
-
-## 从源码构建
-
-需要 Go 工具链。仓库里：
+3. 验证版本号，输出应与发布 tag 一致（例如 tag 为 `v0.2.1` 时输出 `lax 0.2.1`）：
 
 ```bash
-make check    # go vet + go test + go build
+lax version
+```
+
+## 方式二：从源码编译
+
+需要本地已安装 Go 工具链。在源码仓库根目录执行：
+
+```bash
+make check    # 运行 go vet + go test + go build
 make build    # 生成带版本号的 ./lax
 ./lax version
 ```
 
-`make build` 用 `git describe --tags --match 'v*'` 推导版本号。直接 `go build` 也能构建，但版本号是源码里的 `0.1.0-dev`。
+`make build` 通过 `git describe --tags --match 'v*'` 自动注入版本号。
 
-## 初始化
+若直接使用 `go build`，产物也可运行，但 `lax version` 会显示源码默认值 `0.1.0-dev`。
+
+## 初始化配置与数据目录
+
+首次部署时执行初始化命令：
 
 ```bash
 lax init
 ```
 
-它会创建三个文件：
+该命令会在本地生成三个核心文件：
 
-| 路径 | 内容 |
+| 路径 | 职责 |
 | --- | --- |
-| `$XDG_CONFIG_HOME/lax/config.json` | 监听地址、数据库路径与后端 |
-| `$XDG_DATA_HOME/lax/lax.db` | 账号、模型目录、选号策略、请求记录 |
-| `$XDG_DATA_HOME/lax/secret.key` | 加密上游凭据的密钥，权限 `0600` |
+| `$XDG_CONFIG_HOME/lax/config.json` | 网关监听地址、数据库路径与存储驱动配置 |
+| `$XDG_DATA_HOME/lax/lax.db` | 供应商、账号、模型目录、选号策略与请求日志 |
+| `$XDG_DATA_HOME/lax/secret.key` | 用于加密上游凭据的本地密钥（权限 `0600`） |
 
-重复执行不会覆盖已有配置。确实要重建配置时用 `lax init --force`，它只覆盖配置文件，不会清空数据库。
+重复执行 `lax init` 不会覆盖已有配置。
 
-默认路径按 XDG 约定解析。没有设置 `XDG_CONFIG_HOME` 时为 `~/.config/lax`，没有设置 `XDG_DATA_HOME` 时为 `~/.local/share/lax`。也可以用全局参数临时指定：
+需要重置配置文件时可使用 `lax init --force`，该参数只重写 `config.json`，不会清空数据库与密钥。
+
+<Callout type="warn">
+请妥善保管 `secret.key`。  
+备份或迁移主机时，必须将 `config.json`、`lax.db`、`secret.key` 与插件目录一并迁移；  
+丢失 `secret.key` 将导致已入库的上游 `API Key` 无法解密。
+</Callout>
+
+## 环境变量与路径覆盖
+
+`lax` 按 XDG 规范解析默认目录，可通过环境变量或全局参数覆盖：
+
+| 变量 / 参数 | 作用 | 默认值 / 说明 |
+| --- | --- | --- |
+| `XDG_CONFIG_HOME` | 配置文件根目录 | 未设置时取 `~/.config`，配置位于 `~/.config/lax/config.json` |
+| `XDG_DATA_HOME` | 数据与密钥根目录 | 未设置时取 `~/.local/share`，数据位于 `~/.local/share/lax` |
+| `LAX_KEY` | 传入上游 `API Key` | `lax account add` / `set` 省略 `--key` 时从此变量读取，避免明文留在 shell 历史 |
+| `--config <路径>` | 临时指定配置文件 | 全局参数，**必须写在子命令之前** |
+| `--db <路径>` | 临时指定数据库文件 | 全局参数，**必须写在子命令之前** |
+
+多套环境隔离示例：
 
 ```bash
 lax --config /path/to/config.json --db /path/to/lax.db serve
 ```
 
-`--config` 与 `--db` 必须写在子命令之前。
+## 检查本机环境
 
-## 检查环境
+初始化完成后，运行自检确认配置文件、数据目录权限、加密密钥、端口可用性与数据库状态：
 
 ```bash
 lax doctor
 ```
 
-自检项包括配置文件、数据目录可写、加密密钥、配置解析、默认端口与数据库。端口一项会尝试监听配置里的地址；`serve` 正在运行时这一项会显示占用，不是错误。
+端口检查项会尝试绑定配置中的监听地址。
 
-## 配置后端
+如果 `lax serve` 正在运行，该项会提示端口已被占用，属于正常现象。
 
-缺省使用 SQLite。需要多进程共享同一份状态时，可以改用 PostgreSQL 或 MySQL：
+## 可选：切换外部数据库
+
+默认使用内置 SQLite。
+
+仅当需要多进程共享同一份网关状态时，才需在 `config.json` 中切换为 PostgreSQL 或 MySQL：
 
 ```json
 {
-  "db": "/home/someone/.local/share/lax/lax.db",
+  "db": "/path/to/lax.db",
   "driver": "postgres",
   "dsn": "postgres://user:pass@127.0.0.1:5432/lax?sslmode=disable"
 }
 ```
 
-| 字段 | 说明 |
-| --- | --- |
-| `driver` | `sqlite`、`postgres` 或 `mysql` |
-| `dsn` | 非空时用它连库，此时 `db` 被忽略 |
-| `db` | SQLite 文件路径；SQLite 的连接串由程序拼接 |
+- `driver`：支持 `sqlite`、`postgres` 或 `mysql`。
+- `dsn`：非空时优先使用该连接串，此时忽略 `db` 字段。
+- `db`：SQLite 数据库文件路径。
 
-表结构由程序自动创建，不需要手工执行 DDL。
+数据库表结构会在程序启动或初始化时自动创建与迁移，不需要手工执行建表语句。
 
-## 加密边界
+## 凭据加密边界
 
-凭据以 AES-256-GCM 加密后入库。它防的是备份文件、日志或误传数据库造成的泄漏，不防同一台机器上以同一用户身份运行的程序读取 `secret.key`。
+上游 `API Key` 在入库前使用 `secret.key` 进行 AES-256-GCM 加密。
+
+该机制用于防止数据库备份文件、日志或误传数据库造成的凭据泄漏，无法防御同一台主机上以相同系统用户身份运行的进程直接读取 `secret.key`。
 
 ## 下一步
 
-初始化完成后，先加一个账号并拉一次模型清单：[首次配置](/self-hosted/quickstart)。
-
+- 5 分钟跑通第一条请求：[首次配置](/self-hosted/quickstart)
+- 详细自检项与异常处理：[自检](/self-hosted/operate/doctor)
+- 数据备份、迁移与版本升级：[数据与升级](/self-hosted/operate/data-upgrade)

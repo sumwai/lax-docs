@@ -2,10 +2,8 @@
   "title": "运维",
   "icon": "Wrench",
   "pages": [
-    "usage",
-    "logs",
+    "logs-usage",
     "doctor",
-    "data",
-    "upgrade"
+    "data-upgrade"
   ]
 }

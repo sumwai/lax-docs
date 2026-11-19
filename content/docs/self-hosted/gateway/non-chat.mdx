@@ -1,0 +1,188 @@
+---
+title: 非对话接口（向量化 / 语音 / 决策）
+description: openai-embeddings、openai-speech、openai-transcriptions 与 systemone 的调用方式、配置与限制
+---
+
+除四条对话协议外，网关还提供向量化、语音与结构化决策三类非对话接口。
+
+它们在接入前通常需要在供应商路由或模型能力上做显式声明。
+
+<Callout type="info" title="共同边界">
+`openai-embeddings`、`openai-speech`、`openai-transcriptions` 与 `systemone` 均不进入对话协议的中间表示，不支持跨协议转换，也不支持 SSE 流式传输（传入流式参数会在发送上游请求前返回 `400`）。
+</Callout>
+
+## 向量化（openai-embeddings 与 gemini）
+
+向量化接收文本并返回向量列表，网关提供两条只接受 `POST` 的入站路径：`/v1/embeddings`（`openai-embeddings`，从请求体读取 `model`）与 `/v1beta/models/{model}:embedContent`（`gemini`，从 URL 路径读取 `model`）。
+
+内置 `openai` 与 `ollama` 供应商已预设 `/v1/embeddings` 路由。
+
+接入自建供应商 `myco` 或新模型（如 `text-embedding-3-small`）时，需同时声明供应商的向量化路由与模型的 `embedding` 能力：
+
+```bash
+lax provider add myco --base-url https://api.example.com \
+    --embeddings /v1/embeddings \
+    --default-protocol embeddings
+lax model capability add text-embedding-3-small --capability embedding
+```
+
+向量化仅做同协议直通转发：请求体与响应体原样透传，用量统计读取上游返回的 token 字段（缺失时不估算）。
+
+注意 `gemini` 目前仅接受单条 `:embedContent` 请求，不支持 `:batchEmbedContents`。
+
+执行 `lax model probe` 时，对仅声明 `embedding` 能力的模型会直接探测向量化端点。
+
+若对话端点返回 `400` 且供应商已声明向量化路由，探活会自动补试一次向量化端点。
+
+| 常见报错 | 排查方式 |
+| --- | --- |
+| 返回 `400` 提示未声明路由 | 运行 `lax provider ls --verbose`，确认供应商是否配置了 `openai-embeddings` 路由 |
+| 返回 `400` 提示模型缺少能力 | 运行 `lax model capability ls`，检查模型是否声明了 `embedding` |
+| 返回 `503` | 运行 `lax route explain <模型>`，查看候选账号与排除原因 |
+| 上游返回 `404` | 检查供应商配置的向量化路由路径是否与上游真实端点一致 |
+
+## 语音合成与转写（openai-speech 与 openai-transcriptions）
+
+语音包含 `openai-speech`（`POST /v1/audio/speech`）与 `openai-transcriptions`（`POST /v1/audio/transcriptions`）两条路径，请求体上限均为 32 MiB（超出返回 `413`）。
+
+一次语音请求能够成功转发，必须同时满足三项配置：
+
+- 模型在目录中声明了 `speech` 或 `transcription` 能力
+- 模型绑定了对应方言（决定上游报文形状）
+- 供应商显式声明了语音路由（内置 `openai` 供应商已预设）
+
+缺少任意一项都会在发送上游请求前返回 `400`。
+
+```bash
+lax provider add myco --base-url https://speech.example.com \
+    --speech /v1/audio/speech \
+    --transcriptions /v1/audio/transcriptions \
+    --default-protocol speech
+lax model capability add doubao-seed-tts --capability speech --dialect lax/mimo-chat-speech@1
+lax model capability add doubao-seed-asr --capability transcription --dialect lax/mimo-chat-asr@1
+```
+
+内置方言包括 `lax/openai-speech@1`、`lax/openai-transcriptions@1`（均原样直通）、`lax/mimo-chat-speech@1` 与 `lax/mimo-chat-asr@1`（转为 `openai-chat` 形状）。
+
+也可通过[插件](/self-hosted/plugins)注册自定义方言；`speech` 对应 `speech.synthesize@1`，`transcription` 对应 `speech.transcribe@1`。
+
+### 调用方式与参数限制
+
+语音合成（`openai-speech`）：`input` 支持字符串或字符串数组（按换行符拼接），`response_format` 仅支持 `mp3`、`wav`、`pcm`（不做音频转码），`stream_format` 可省略或设为 `audio`（传入 `sse` 返回 `400`）。
+
+```bash
+curl -s http://127.0.0.1:4567/v1/audio/speech \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"doubao-seed-tts","input":"你好","voice":"zh_female_xiaohe_uranus_bigtts","response_format":"mp3"}' \
+  --output hello.mp3
+```
+
+语音转写（`openai-transcriptions`）：multipart 表单必须包含 `model` 与非空的 `file` 字段，`response_format` 支持 `json`、`text` 与 `verbose_json`（暂不支持带时间轴的 `srt` 与 `vtt`，传入返回 `400`），`language` 仅接受 `auto`、`zh`、`en`。
+
+```bash
+curl -s http://127.0.0.1:4567/v1/audio/transcriptions \
+  -F model=doubao-seed-asr \
+  -F file=@hello.mp3 \
+  -F response_format=json
+```
+
+命令行可直接通过 `lax model speak` 与 `lax model transcribe` 调用：
+
+```bash
+lax model speak --model doubao-seed-tts --text "你好" --voice zh_female_xiaohe_uranus_bigtts --out hello.mp3
+lax model transcribe hello.mp3 --model doubao-seed-asr --language zh --format json
+```
+
+语音记录按 `tts_chars`（合成输入字符数，定价字段 `tts-char`）与 `audio_seconds`（上游返回的音频时长，定价字段 `audio-second`）统计用量，未设置单价时在汇总中显示为「未定价」。
+
+音频与消息文本之间不做跨模态转换。
+
+## 决策请求（systemone）
+
+`systemone` 面向结构化分类、打分与布尔判断场景：接收一份待判断材料 `state` 和一组问题 `questions`，直接返回每个问题的答案与概率，不生成自由文本。
+
+决策模型通常不在上游默认模型清单中，需手工声明供应商路由、模型与协议（仅声明 `systemone` 路由时必须指定 `--default-protocol systemone`）：
+
+```bash
+lax provider add typesafe --base-url https://api.typesafe.ai \
+    --systemone /v1/systemone --default-protocol systemone
+lax account add acct-c --provider typesafe --key sk-xxx
+lax model add typesafe/jev --account acct-c --protocol systemone
+lax model probe --account acct-c --model typesafe/jev --protocol systemone
+```
+
+### 请求结构与问题类型
+
+请求 `POST /v1/systemone` 时，在顶层传入 `model`、`state`（纯文本或 JSON）与 `questions`：
+
+```bash
+curl -s http://127.0.0.1:4567/v1/systemone \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "typesafe/jev",
+    "state": "付款失败三天，损失在扩大，请今天处理",
+    "questions": {
+      "urgent": {"type": "noul", "instructions": "是否要求今天处理"},
+      "team": {
+        "type": "choice",
+        "instructions": "该交给哪个团队",
+        "criteria": {"billing": "付款与扣款", "technical": "软件故障"}
+      },
+      "anger": {
+        "type": "score",
+        "instructions": "情绪强度",
+        "criteria": ["平静", "不满", "愤怒"]
+      }
+    }
+  }'
+```
+
+| 问题类型 | 请求写法 | 响应答案字段 |
+| --- | --- | --- |
+| `noul` | `{"type":"noul","instructions":"..."}` | `noul`（回答「是」的概率） |
+| `choice` | `{"type":"choice","instructions":"...","criteria":{"a":"说明","b":"说明"}}` | `choice`、`confidence`、`probabilities` |
+| `score` | `{"type":"score","instructions":"...","criteria":["低","中","高"]}`（至少两级） | `score`、`confidence`、`legend`、`probabilities` |
+
+上游响应原样返回，包含真实 `model` 版本号、各问题的 `answers` 以及 `usage`：
+
+```json
+{
+  "model": "jev-1.14.0",
+  "answers": {
+    "urgent": {"type": "noul", "noul": 0.98},
+    "team": {"type": "choice", "choice": "billing", "confidence": 0.98},
+    "anger": {"type": "score", "score": 1.08, "confidence": 0.86, "legend": {"1": "不满"}}
+  },
+  "usage": {"input_tokens": 386, "output_tokens": 61}
+}
+```
+
+命令行可通过 `lax model decide` 发起决策请求（或通过 `--questions` 传入整块 JSON）：
+
+```bash
+lax model decide --model typesafe/jev --state "材料" \
+    --noul "urgent=是否要求今天处理" \
+    --choice "team=该交给哪个团队" --choice "team:billing=账单,technical=技术" \
+    --score "anger=情绪强度" --score "anger:平静,不满,愤怒"
+```
+
+### 上限与互通约束
+
+| 限制项 | 上限 | 超出行为 |
+| --- | --- | --- |
+| 单次请求问题数 | 100 | 上游拒绝 |
+| `state` 与全部问题合计 | 64K token | 上游拒绝 |
+| `state` 与最长单个问题合计 | 32K token | 上游拒绝 |
+| 请求体大小 | 8 MiB | 网关返回 `413` |
+
+一个模型只有一种有效出站协议。
+
+请求 `/v1/systemone` 但模型走其他协议，或请求对话路径但模型有效出站协议为 `systemone`，网关均返回 `400`。
+
+若需同时发起对话与决策请求，需分别配置不同的模型名。
+
+## 下一步
+
+- 查看八条入站协议与十个 POST 路径总览：[网关服务与入站协议](/self-hosted/gateway)
+- 了解语音与对话的用量汇总与定价：[用量统计与请求日志](/self-hosted/operate/logs-usage)、[模型定价](/self-hosted/configure/pricing)
+- 通过插件扩展自定义语音方言：[插件](/self-hosted/plugins)

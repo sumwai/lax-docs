@@ -1,33 +1,41 @@
 ---
 title: 快速开始
-description: 用管理员发放的 API Key 查询模型并发出第一条请求
+description: 5 分钟内设置 API Key、查询可用模型并发起第一条对话
 ---
 
-开始前需要两样东西：入口地址 `https://larkax.com`，以及 API Key（密钥）。凭据由入口管理员发放，取得方式见[取得凭据](#取得凭据)。下面的命令把 API Key 放进环境变量，避免在命令历史里反复出现。
+开始前需要两项信息：网关地址 [https://larkax.com](https://larkax.com) 与管理员发放的 `API Key`。
 
-## 1. 设置 API Key
+尚未取得凭据时，请先查看[取得凭据](/#取得凭据)。
+
+## 1. 设置环境变量
+
+将 `API Key` 存入环境变量 `$OPENAI_API_KEY`，避免凭据反复出现在终端命令或脚本里。
+
+变量值只需填写原始字符串，无需添加 `Bearer ` 前缀。
 
 ```bash
-export LARKAX_API_KEY='<API Key>'
+export OPENAI_API_KEY='<API Key>'
 ```
 
-API Key 是一整串字符，不需要加 `Bearer ` 前缀。下面的请求会自己补上。
+## 2. 验证可用模型列表
 
-## 2. 查询可用模型
+发送 `GET /v1/models` 请求，确认 `API Key` 生效并查看当前可用模型。
+
+返回结果中的 `data[].id` 就是后续请求需要填写的模型名。
 
 ```bash
 curl -s https://larkax.com/v1/models \
-  -H "Authorization: Bearer $LARKAX_API_KEY"
+  -H "Authorization: Bearer $OPENAI_API_KEY"
 ```
 
-返回里的 `data[].id` 就是请求时填写的模型名。清单只列出启用账号声明可用的模型；冷却中的模型仍会出现，真正调用时可能返回 503。
+预期返回示例：
 
 ```json
 {
   "object": "list",
   "data": [
     {
-      "id": "deepseek-v4-pro",
+      "id": "deepseek/deepseek-v4.1-flash",
       "object": "model",
       "created": 0,
       "owned_by": "deepseek"
@@ -36,34 +44,51 @@ curl -s https://larkax.com/v1/models \
 }
 ```
 
-## 3. 发一条对话请求
+该接口仅用于只读查询，不会产生对话计费。
+
+## 3. 发起第一条对话
+
+使用 `deepseek/deepseek-v4.1-flash` 发送一条非流式对话请求，确认链路完全通畅：
 
 ```bash
 curl -s https://larkax.com/v1/chat/completions \
-  -H "Authorization: Bearer $LARKAX_API_KEY" \
+  -H "Authorization: Bearer $OPENAI_API_KEY" \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "deepseek-v4-pro",
+    "model": "deepseek/deepseek-v4.1-flash",
     "messages": [{"role": "user", "content": "用一句话介绍 HTTP"}]
   }'
 ```
 
-把返回里的 `choices[0].message.content` 取出来就是回答。第一次请求建议用非流式，确认 API Key、base URL 与模型名都正确，再打开流式。
+预期成功输出示例：
 
-## 4. 检查入口状态
-
-```bash
-curl -s https://larkax.com/healthz \
-  -H "Authorization: Bearer $LARKAX_API_KEY"
+```json
+{
+  "id": "chatcmpl-example",
+  "object": "chat.completion",
+  "created": 1700000000,
+  "model": "deepseek/deepseek-v4.1-flash",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "HTTP 是在客户端与服务器之间传输超文本与结构化数据的应用层协议。"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 12,
+    "completion_tokens": 22,
+    "total_tokens": 34
+  }
+}
 ```
 
-`healthz` 返回账号、启用账号、模型与协议计数。它只表示入口进程与数据库可读，不探测上游，也不代表某个模型现在一定能成功调用。
-
-## 常见配置对照
-
-各客户端的 base URL 与 API Key 位置见[选择客户端](/clients#选择客户端)。
+提取返回结果中的 `choices[0].message.content` 即可获得回复内容。
 
 ## 下一步
 
-- 看各协议、流式和工具调用：[调用接口](/usage)
-- 状态码与请求体上限：[错误与限制](/errors)
+- 在常用工具或代码中接入网关：[客户端配置](/clients)
+- 遇到 `401`、`404` 或连接异常：[故障排查](/troubleshooting)

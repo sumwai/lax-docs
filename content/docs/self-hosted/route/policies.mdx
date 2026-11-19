@@ -1,184 +1,219 @@
 ---
-title: 选号策略
-description: priority、rotate、weighted、success 与 softmax 的计算方式与适用场景
+title: 路由策略与权重
+description: 什么时候用哪种选号策略，以及 weighted、softmax 等策略参数与账号权重配置
 ---
 
-`route set` 一次写一整条策略。策略名由 `--strategy` 给出，五种取值。
+网关支持五种选号策略，通过 `lax route set <模型> --strategy <策略>` 设置。
 
-## 快速对照
+本页先说明每种策略的适用场景，再展开参数、评分公式与账号权重配置。
 
-| 策略 | 排序依据 | 是否用权重 | 是否用统计 | 适用场景 |
+## 什么时候用哪种策略
+
+| 策略 | 排序依据 | 是否用权重 | 是否用统计 | 什么时候用 |
 | --- | --- | --- | --- | --- |
-| `priority` | 账号 `priority` 升序 | 否 | 否 | 主备账号，稳定可预期 |
-| `rotate` | 每次请求轮换起始位置 | 否 | 否 | 多账号平均分摊 |
-| `weighted` | 按权重比例轮转 | 是 | 否 | 按账号份额分摊 |
-| `success` | 统计窗口内成功率降序 | 否 | 是 | 上游质量差异大 |
-| `softmax` | 优先级、成功率、延迟加权评分后按概率抽 | 是 | 是 | 平滑分流并探索 |
+| `priority` | 账号 `priority` 升序 | 否 | 否 | 有明确主备关系，希望先耗尽主账号再切备用 |
+| `rotate` | 每次请求轮换起始位置 | 否 | 否 | 多个同级账号，希望把请求均匀摊开 |
+| `weighted` | 按权重比例轮转 | 是 | 否 | 各账号套餐额度不同，按固定比例分流 |
+| `success` | 统计窗口内平滑成功率降序 | 否 | 是 | 上游稳定性差异大，自动避开频繁报错的账号 |
+| `softmax` | 优先级、成功率、延迟综合评分后抽样 | 是 | 是 | 多维度平滑分流，同时给新号或低分号保留探索机会 |
 
 ## priority
 
-账号按 `priority` 从小到大排；相同优先级按账号 ID 排。失败后按这个顺序试下一个。
+账号按 `priority` 从小到大排列；相同优先级按账号 ID 排序，失败后依次试下一个。
 
 ```bash
-lax route set glm-4.6 --strategy priority
+lax route set deepseek/deepseek-v4.1-flash --strategy priority
 lax account add acct-a --provider myco --key sk-a --priority 10
 lax account add acct-b --provider myco --key sk-b --priority 20
 ```
 
-这是内置默认策略。它适合明确的主备关系：先花完主账号的额度，再使用备用账号。
+`priority` 是内置默认策略，适合主备清晰、需要稳定可预期顺序的场景。
 
 ## rotate
 
-每次请求把起始位置向后移动一位，形成比例轮转，不是随机抽取。候选数量变化时，轮转位置按当前候选列表取模。
+每次请求把起始位置向后移动一位，形成比例轮转，而不是随机抽取。
+
+候选数量变化时，轮转位置按当前候选列表长度取模。
 
 ```bash
-lax route set glm-4.6 --strategy rotate --sticky off
+lax route set deepseek/deepseek-v4.1-flash --strategy rotate --sticky off
 ```
 
-适合账号质量接近、希望平均分摊的情况。默认的 `sticky prefer` 会把同一会话固定到一个账号，从而削弱轮转效果；要真正轮转，通常同时设 `--sticky off`。
+默认的 `sticky prefer` 会把同一会话固定到同一个账号，从而削弱轮转效果。
+
+需要每次请求都均匀分摊时，通常同时设置 `--sticky off`。
 
 ## weighted
 
-按账号权重比例排出完整顺序。权重 3:1 的两个账号，在四次请求里约三次把权重 3 的账号排在第一。
+按账号权重比例排出完整候选顺序，而不是只选第一个。
+
+权重 3:1 的两个账号，在四次请求里约三次把权重 3 的账号排在第一位；它失败后，后面的账号仍按权重顺序补上。
 
 ```bash
-lax route set glm-4.6 --strategy weighted
-lax route account set acct-a --model glm-4.6 --weight 3
-lax route account set acct-b --model glm-4.6 --weight 1
+lax route set deepseek/deepseek-v4.1-flash --strategy weighted --sticky off
+lax route account set acct-a --model deepseek/deepseek-v4.1-flash --weight 3
+lax route account set acct-b --model deepseek/deepseek-v4.1-flash --weight 1
+lax route explain deepseek/deepseek-v4.1-flash --seed 42
 ```
 
-权重取 1 到 1000 的整数，默认 1。权重只影响 `weighted` 与 `softmax`；`priority`、`rotate`、`success` 不看权重。
+实际分流顺序可在 `lax route explain` 的「概率」与顺序输出中观察。
+
+权重只影响 `weighted` 与 `softmax`；`priority`、`rotate`、`success` 不读取权重。
 
 ## success
 
-按统计窗口内的账号相关成功率降序。成功率相同再按 `priority` 与账号 ID 排序。
+按统计窗口内的账号平滑成功率降序排列；成功率相同再按 `priority` 与账号 ID 排序。
 
 ```bash
-lax route set glm-4.6 --strategy success --window 7d --min-samples 20
+lax route set deepseek/deepseek-v4.1-flash --strategy success --window 7d --min-samples 20
 ```
 
-成功率用平滑值计算：
+平滑成功率公式如下：
 
 ```text
 (成功数 + 0.5 × 最小样本) / (样本数 + 最小样本)
 ```
 
-新账号因此落在 0.5 附近，不会因为零样本排到最后。
+加入最小样本平滑后，新账号在零样本时落在 `0.5` 附近，不会因为没有历史记录而直接排到最后。
 
-样本口径：
+样本口径如下：
 
-| 结果 | 是否进入样本 |
+| 请求结果 | 是否进入样本 |
 | --- | --- |
-| 2xx | 成功 |
-| 408、429、5xx | 失败 |
+| `2xx` | 成功 |
+| `408`、`429`、`5xx` | 失败 |
 | 连接层失败（请求记录 `http_status=502`） | 失败 |
-| 400、401、403 | 不进入 |
+| `400`、`401`、`403` | 不进入 |
 | 客户端主动断开 | 不进入 |
 
-统计来自 `route_stats` 的分钟桶，启动时清理 30 天以前的数据。
+统计基于按分钟聚合的请求数据，网关启动时会自动清理 30 天以前的历史统计。
 
 ## softmax
 
-先把三个维度算成 0 到 1 的得分，再按权重相加，随后乘账号权重、按温度做 softmax，最后按探索比例保底。
+先计算优先级、成功率、延迟三个 0 到 1 的归一化得分并加权求和，随后乘以账号权重、按温度做 softmax，最后按探索比例保底抽样。
 
 ```bash
-lax route set glm-4.6 --strategy softmax \
+lax route set deepseek/deepseek-v4.1-flash --strategy softmax \
     --sticky prefer --temperature 0.1 \
     --explore 2 \
     --score-priority 0.4 --score-success 0.5 --score-latency 0.1
 ```
 
-参数与取值：
+参数与默认取值：
 
-| 参数 | 作用 | 范围 | 默认 |
+| 参数 | 作用 | 取值范围 | 默认 |
 | --- | --- | --- | --- |
 | `--temperature` | 控制抽样集中程度，越低越集中 | 大于 0 且不超过 1 | `0.1` |
-| `--explore` | 每个候选的保底概率，按百分比给 | `0` 到 `100` | `2`（即 2%） |
+| `--explore` | 每个候选的保底探索概率（百分比） | `0` 到 `100` | `2`（即 2%） |
 | `--score-priority` | 优先级得分权重 | `0` 到 `1`，三项之和大于 0 | `0.4` |
 | `--score-success` | 成功率得分权重 | 同上 | `0.5` |
 | `--score-latency` | 延迟得分权重 | 同上 | `0.1` |
 | `--window` | 统计窗口 | 1 秒到 30 天 | `1d` |
 | `--min-samples` | 平滑用的最小样本 | 正整数 | `20` |
 
-评分规则：
+评分规则与计算方式：
 
-| 维度 | 计算 |
+| 维度 | 计算方式 |
 | --- | --- |
 | 优先级 | 在本次候选内归一化，`priority` 越小得分越高 |
 | 成功率 | 使用与 `success` 相同的平滑成功率 |
-| 延迟 | 取窗口内成功请求的平均耗时；10 秒及以上记 0 分；没有成功样本按 0.5 处理 |
-
-综合得分：
+| 延迟 | 取窗口内成功请求的平均耗时；10 秒及以上记 0 分；没有成功样本按 `0.5` 处理 |
 
 ```text
-score = (score_priority × 0.4 + score_success × 0.5 + score_latency × 0.1)
-        / (0.4 + 0.5 + 0.1)
-```
+score = (score_priority × s_priority + score_success × s_success + score_latency × s_latency)
+        / (score_priority + score_success + score_latency)
 
-三个评分权重会先归一化，因此给 `0.4 / 0.5 / 0.1` 与给 `4 / 5 / 1` 等价。
-
-概率：
-
-```text
 q_i = w_i × exp((score_i - max_score) / temperature)
 p_i = (1 - explore) × q_i / Σq + explore / n
 ```
 
-温度越低越集中，越高越分散。`explore` 给每个候选保底概率，避免某个账号永远不被探索。
+三个评分权重会先归一化，因此给 `0.4 / 0.5 / 0.1` 与 `4 / 5 / 1` 等价。
 
-softmax 用无放回抽样排出完整顺序，因此故障转移顺序也不是固定的。相同数据与相同 `--seed` 会得到相同顺序。
+`softmax` 用无放回抽样排出完整顺序，因此故障转移顺序也不是固定的；相同数据与相同 `--seed` 会得到相同顺序。
+
+## 账号权重配置
+
+权重只服务 `weighted` 与 `softmax` 两种策略，表达的是「分流比例」，不是「启用开关」。
+
+### 两个作用域
+
+| 作用域 | 命令 | 生效范围 |
+| --- | --- | --- |
+| 账号默认 | `lax route account set <账号> --weight N` | 这个账号的所有模型 |
+| 模型覆盖 | `lax route account set <账号> --model <模型> --weight N` | 只对这个模型生效 |
+
+模型覆盖优先于账号默认；两者都没有设置时使用内置权重 `1`。
+
+权重取 `1` 到 `1000` 的整数；`0` 不表示停用，传入 `0` 会报用法错误，停用账号请执行 `lax account disable`。
+
+```bash
+lax route account set acct-a --weight 3
+lax route account set acct-a --model deepseek/deepseek-v4.1-flash --weight 5
+lax route account ls
+lax route account ls acct-a
+lax route account unset acct-a --model deepseek/deepseek-v4.1-flash
+lax route account unset acct-a
+```
+
+`lax route account ls` 的「来源」列会标出当前权重来自 `内置 1`、`账号默认` 还是 `模型覆盖`。
+
+删除模型覆盖后回落到账号默认，删除账号默认后回到内置 `1`；删除不存在的权重不报错，只输出提示。
+
+### 权重与 priority 的区别
+
+| 对比项 | `priority` | `weight` |
+| --- | --- | --- |
+| 归属 | 账号属性 | 选号策略输入 |
+| 含义 | 尝试顺序 | 分流比例 |
+| 适用策略 | `priority`、`success`、`softmax` 评分 | `weighted`、`softmax` |
+| 典型场景 | 主备账号顺序 | 按套餐份额 3:1 分流 |
+
+一个账号可以同时拥有低优先级和高权重，两者互不冲突：`priority` 决定固定排序谁在前，权重决定按比例分流时占多少份额。
 
 ## 会话粘性
 
-`--sticky` 管同一会话是否固定到同一个账号。会话键来自客户端请求头，按候选账号 ID 排序后的列表做哈希，因此候选增减才会改变目标。
+`--sticky` 控制同一会话是否固定到同一个账号。
+
+会话键来自客户端请求头，按候选账号 ID 排序后的列表做哈希，因此只有候选列表增减时才会改变目标。
 
 | 取值 | 行为 |
 | --- | --- |
-| `prefer` | 有会话键时，把哈希到的账号提到第一位；该账号不可用时按策略顺序继续 |
+| `prefer` | 默认值；有会话键时把哈希命中的账号提到第一位，该账号不可用时按策略顺序继续 |
 | `off` | 完全忽略会话键 |
-| `strict` | 只允许哈希到的账号；它不可用时返回 503，不换号 |
+| `strict` | 只允许哈希命中的账号；该账号不可用时直接返回 503，不换号 |
 
-`strict` 适合上游对多轮上下文有强绑定要求的场景，代价是命中冷却时请求直接失败。
+`strict` 适合上游对多轮上下文有强绑定要求的场景，代价是命中冷却或被额度排除时请求直接失败。
 
 ## 额度参与选号
 
-额度默认只读，不改变选号。两个 `route set` 参数可以把额度接入候选过滤与最终排序：
+额度默认仅作只读展示，不参与选号。
 
-| 参数 | 说明 | 默认 |
-| --- | --- | --- |
-| `--quota-order` | 在策略、会话粘性与 softmax 之后做稳定排序：`off`、`expiry_asc`、`expiry_desc`、`ratio_desc`、`ratio_asc`、`usd_desc`、`usd_asc` | `off` |
-| `--quota-min-usd` | 已知折合余额低于这个 USD 值的账号不参与选号；`0` 关闭 | `0` |
-
-`--quota-min-usd` 只排除折合余额已知且低于阈值的账号，从未刷新、汇率未知或余额未知的账号一律保留。`--quota-order` 在策略、会话粘性与 softmax 抽样之后对完整顺序做稳定排序。完整规则见[参与选号](/self-hosted/route/quota#参与选号)。
-
-`route set` 是[整条覆盖](/self-hosted/route#整条覆盖)。只写 `--strategy` 会把这两个额度参数一起恢复默认；要保留额度设置，每次都要显式写出。
+需要按余额过滤或排序时，在 `lax route set` 上显式指定 `--quota-order` 与 `--quota-min-usd`，完整规则见[参与选号](/self-hosted/route/quota#参与选号)。
 
 ```bash
-lax route set glm-4.6 --strategy priority --quota-order usd_desc --quota-min-usd 1
+lax route set deepseek/deepseek-v4.1-flash --strategy priority --quota-order usd_desc --quota-min-usd 1
 ```
 
-额度事实、刷新与供应商差异见[账号额度](/self-hosted/route/quota)。
+由于 `lax route set` 采用[整条覆盖](/self-hosted/route#整条覆盖)，后续更新策略时若只写 `--strategy`，这两项会恢复默认。
 
-## 参数适用范围
+需要保留时必须在命令中显式写出。
+
+## 参数适用范围与窗口上限
 
 | 参数 | 生效策略 |
 | --- | --- |
-| `--sticky` | 全部 |
-| `--temperature` | 仅 `softmax` |
-| `--explore` | 仅 `softmax` |
+| `--sticky` | 全部策略 |
+| `--temperature`、`--explore` | 仅 `softmax` |
 | `--score-priority`、`--score-success`、`--score-latency` | 仅 `softmax` |
 | `--window`、`--min-samples` | `success` 与 `softmax` |
-| `--quota-order`、`--quota-min-usd` | 全部（默认关闭） |
+| `--quota-order`、`--quota-min-usd` | 全部策略（默认关闭） |
 
-给不适用策略的参数不会报错，但也不改变行为。`route show` 会照常显示这些值。
+传入不适用于当前策略的参数不会报错，但也不会改变选号行为，`lax route show` 会照常显示这些值。
 
-## 窗口与样本上限
-
-`--window` 接受 `90m`、`24h`、`7d`、`2w` 这样的写法，最长 30 天。`--min-samples` 必须为正整数。
+`--window` 接受 `90m`、`24h`、`7d`、`2w` 等写法，最长 `30d`；`--min-samples` 必须为正整数。
 
 ## 下一步
 
-- 权重怎么设：[账号权重](/self-hosted/route/weights)
-- 额度怎么查、怎么参与选号：[账号额度](/self-hosted/route/quota)
-- 看一次具体选择：[预演选号](/self-hosted/route/explain)
-
+- [路由与选号机制](/self-hosted/route)：回顾选号五阶段流程与三层配置
+- [额度感知与优先消耗](/self-hosted/route/quota)：配置余额监控、低余额降权与到期处理
+- [冷却、重试与选号排障](/self-hosted/route/failure)：用 `lax route explain` 验证分流与权重效果

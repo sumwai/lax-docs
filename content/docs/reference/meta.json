@@ -1,7 +1,7 @@
 {
   "title": "参考",
   "icon": "BookOpen",
-  "description": "术语速查与供 Agent 读取的入口",
+  "description": "术语速查与供 Agent 读取的索引",
   "root": true,
   "pages": ["glossary", "agents"]
 }

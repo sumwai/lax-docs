@@ -3,9 +3,11 @@ title: 供 Agent 读取
 description: 文档的 Markdown、llms.txt 与推荐读取方式
 ---
 
-本页面向编写抓取脚本或 Agent 的人。读完应能把 `/llms.txt` 与 Markdown 端点接进抓取流程，不需要解析 HTML。
+本页面向编写抓取脚本或 Agent 的人。
 
-## 入口
+读完应能把 `/llms.txt` 与 Markdown 端点接进抓取流程，不需要解析 HTML。
+
+## 访问方式
 
 | 地址 | 内容 |
 | --- | --- |
@@ -31,12 +33,12 @@ curl -s https://docs.larkax.com/self-hosted/route/policies.md
 3. 需要完整上下文时读 `/llms-full.txt`；
 4. 不要用 HTML 页面做正文抽取。
 
-## 事实边界
+## 内容边界
 
 - 页面只描述当前版本的命令与行为；
 - 发布流程与版本规则见[版本与发布](/releases)，逐次改动见 [GitHub Releases](https://github.com/sumwai/lax/releases)；
 - 设计取舍与内部实现不在站点，页面只写可观察的命令、配置与协议行为；
-- 示例输出已脱敏，账号名与 key 是占位。
+- 示例输出已脱敏，账号名与 API Key 均为占位。
 
 ## 站点自身
 
@@ -48,4 +50,9 @@ curl -s https://docs.larkax.com/self-hosted/route/policies.md
 - OG 图与 sitemap。
 
 内容仓库只放 Markdown 与 `meta.json`，站点代码在独立仓库。
+
+## 下一步
+
+- [术语](/reference/glossary)：速查文档中的高频术语与权威小节
+- [版本与发布](/releases)：查看版本号规则与发布流程
 

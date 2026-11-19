@@ -1,51 +1,39 @@
 ---
 title: 供应商与路由
-description: 内置供应商、自定义地址、八条路报文协议与模型列表路径
+description: 管理内置与自建供应商的 Base URL、八条协议路由、模型列表路径与凭据头
 ---
 
-供应商是一家上游服务。`lax provider` 维护它的地址、每条协议的路由、默认协议、凭据头写法与模型列表覆盖。
+供应商定义了「请求往哪里发」与「按什么协议格式发」。
 
-## 查看
+## 什么时候需要配置供应商
 
-```bash
-lax provider ls
-lax provider ls --verbose
-lax provider ls --json
-```
+网关初始化时已自带 9 个常见内置供应商（包括 `deepseek`、`anthropic`、`openai` 等）。
 
-默认输出是总览：名称、来源、地址、默认协议、已声明路由与备注。`--verbose` 额外显示每条路由的完整路径与模型列表地址。
+如果只使用内置供应商的官方地址，**无需新建供应商**，直接[添加账号](/self-hosted/configure/accounts)即可。
 
-来源列有三种：
+当需要以下操作时，使用 `lax provider`：
 
-| 来源 | 含义 |
-| --- | --- |
-| 内置 | 首次建库时从二进制内置目录写入 |
-| 插件 | `plugin install` 登记或认领的供应商 |
-| 自建 | `provider add` 新建，或从旧库搬迁补建 |
+- 接入企业私有模型网关、本地部署推理服务或第三方中转（以下以自建供应商 `myco` 为例）；
+- 覆盖内置供应商的 `Base URL` 或修改某条协议的路径；
+- 自定义上游所需的鉴权请求头名称或格式。
 
-来源只用于识别，不限制修改；三种行都能 `set`、`unset` 与 `rm`。
+### 内置供应商清单
 
-## 内置供应商
-
-初始化后自带以下记录：
-
-| 供应商 | base URL | 已声明路由 |
+| 供应商 | 默认 `Base URL` | 已声明路由 |
 | --- | --- | --- |
-| `anthropic` | `https://api.anthropic.com` | anthropic |
-| `openai` | `https://api.openai.com` | openai-chat、openai-responses、openai-embeddings、openai-speech、openai-transcriptions |
-| `deepseek` | `https://api.deepseek.com` | openai-chat、anthropic |
-| `moonshot` | `https://api.moonshot.cn` | openai-chat |
-| `kimi` | `https://api.moonshot.cn` | openai-chat |
-| `openrouter` | `https://openrouter.ai/api` | openai-chat |
-| `ollama` | `http://127.0.0.1:11434` | openai-chat、openai-embeddings |
-| `commandcode` | `https://api.commandcode.ai/provider/v1` | openai-chat、anthropic |
-| `google-gemini` | `https://generativelanguage.googleapis.com` | gemini |
+| `anthropic` | `https://api.anthropic.com` | `anthropic` |
+| `openai` | `https://api.openai.com` | `openai-chat`、`openai-responses`、`openai-embeddings`、`openai-speech`、`openai-transcriptions` |
+| `deepseek` | `https://api.deepseek.com` | `openai-chat`、`anthropic` |
+| `moonshot` | `https://api.moonshot.cn` | `openai-chat` |
+| `kimi` | `https://api.moonshot.cn` | `openai-chat` |
+| `openrouter` | `https://openrouter.ai/api` | `openai-chat` |
+| `ollama` | `http://127.0.0.1:11434` | `openai-chat`、`openai-embeddings` |
+| `commandcode` | `https://api.commandcode.ai/provider/v1` | `openai-chat`、`anthropic` |
+| `google-gemini` | `https://generativelanguage.googleapis.com` | `gemini` |
 
-内置目录随二进制发布。旧数据库升级时会按 `plugin_id` 与已知名称回填来源。
+## 最短配置命令
 
-## 新增供应商
-
-`provider add` 只新建；名称已存在时用 `provider set`。
+添加一家同时支持 OpenAI 与 Anthropic 协议的自建供应商 `myco`：
 
 ```bash
 lax provider add myco --base-url https://api.example.com \
@@ -54,131 +42,104 @@ lax provider add myco --base-url https://api.example.com \
     --default-protocol openai
 ```
 
-八条路由参数：
-
-| 参数 | 报文协议 |
-| --- | --- |
-| `--anthropic` | anthropic |
-| `--openai` | openai-chat |
-| `--responses` | openai-responses |
-| `--gemini` | gemini |
-| `--systemone` | systemone |
-| `--embeddings` | openai-embeddings |
-| `--speech` | openai-speech |
-| `--transcriptions` | openai-transcriptions |
-
-路由有两种写法：相对路径拼在 `--base-url` 之后，整条地址直接使用。两种可以混用。
-
-| 写法 | `--base-url` | 实际请求地址 |
-| --- | --- | --- |
-| 整条地址，例如 `https://api.example.com/v1/chat/completions` | 可省略 | 原样使用 |
-| 相对路径，例如 `/v1/chat/completions` | 必填 | `--base-url` 加路径 |
-| 相对路径，例如 `/chat/completions` | `https://api.example.com/api/paas/v4` | `https://api.example.com/api/paas/v4/chat/completions` |
-| gemini 路由含 `{model}` | 按写法 | `{model}` 替换为模型名，按路径段转义 |
+查看当前所有供应商（加 `--verbose` 可展开每条路由的完整地址与模型列表路径）：
 
 ```bash
-lax provider add bigmodel \
+lax provider ls
+lax provider ls --verbose
+```
+
+输出中的「来源」列仅用于标识来源（内置、插件、自建），不限制后续修改，三类供应商均可执行 `set`、`unset` 与 `rm`。
+
+## 工作方式与进阶参数
+
+### 1. 八条协议路由与地址写法
+
+新建供应商时**至少需要声明一条路由**，支持以下八个路由参数：
+
+- 对话协议：`--openai`（`openai-chat`）、`--responses`（`openai-responses`）、`--anthropic`（`anthropic`）、`--gemini`（`gemini`）
+- 专用协议：`--systemone`（`systemone`）、`--embeddings`（`openai-embeddings`）、`--speech`（`openai-speech`）、`--transcriptions`（`openai-transcriptions`）
+
+每条路由既可以写**相对路径**（拼接在 `--base-url` 之后），也可以写**完整 URL**（忽略 `--base-url`，适合不同协议落在不同域名的场景），两者可以混用：
+
+```bash
+lax provider add myco \
     --anthropic https://open.bigmodel.cn/api/anthropic/v1/messages \
     --openai https://open.bigmodel.cn/api/coding/paas/v4/chat/completions \
     --responses https://open.bigmodel.cn/api/v1/responses \
     --models-path https://open.bigmodel.cn/api/coding/paas/v4/models
 ```
 
-`--base-url` 可以省略，条件是每条路由与 `--models-path` 都是整条地址。只要有一条是相对路径，就必须给 `--base-url`，否则整次写入被拒绝。
-
-至少声明一条路由。路径的斜杠写法由程序规整：前导斜杠、重复斜杠与末尾斜杠不必纠结。`{model}` 占位符只允许出现在 gemini 路由里。
-
-## 修改供应商
-
-`provider set` 只写传入的字段，未传入的保持不变：
+若声明 `gemini` 路由，由于模型名位于 URL 路径中，路由必须包含 `{model}` 占位符（替换时自动按 URL 路径段转义）：
 
 ```bash
-lax provider set myco --responses /v1/responses --default-protocol responses
-lax provider set myco --models-path /v1/models
-lax provider set myco --base-url https://api2.example.com
+lax provider add myco --base-url https://gemini.example.com \
+    --gemini '/v1beta/models/{model}:generateContent' \
+    --default-protocol gemini
 ```
 
-传空值是用法错误。删除单项配置用 `provider unset`：
+<Callout type="warn">
+只有当所有已声明路由与 `--models-path` 均使用完整 URL 时，才可省略 `--base-url`；只要存在任意一条相对路径，就必须提供 `--base-url`。
 
-```bash
-lax provider unset myco anthropic
-lax provider unset myco systemone
-lax provider unset myco models-path
-lax provider unset myco default-protocol
-lax provider rm myco
-```
+另外，路径中禁止出现 `..`，`{model}` 占位符仅允许用于 `gemini` 路由。
+</Callout>
 
-`unset` 是幂等操作：目标项不存在时不报错，只输出提示。删除后一条路由都不剩会被拒绝；这种场景应使用 `provider rm`。
+### 2. 默认协议推导
 
-## 删除供应商
+`--default-protocol` 的值必须属于该供应商已声明的路由之一。
 
-```bash
-lax provider rm myco
-lax provider rm myco --force
-```
-
-仍被账号使用的供应商默认不能删除；`--force` 会删除供应商并停用指向它的账号。历史请求记录保留。
-
-## 默认协议
-
-`--default-protocol` 的取值是八条报文协议。显式值必须落在已声明的路由上。
-
-不给显式值时，按以下顺序从**已声明的路由**里选：
+未显式指定时，网关按以下顺序从已声明路由中自动选取：
 
 1. `openai-chat`
 2. `openai-responses`
 3. `anthropic`
 
-gemini、systemone、embeddings、speech 与 transcriptions 不会自动成为默认协议。只声明这些路由时必须同时给 `--default-protocol`，否则该供应商算不出默认协议。
+`gemini`、`systemone`、`embeddings`、`speech` 与 `transcriptions` 不会自动成为默认协议。
 
-单条路由的供应商可以省略 `--default-protocol`，程序会取那一条。
+若供应商只声明了这些路由，必须显式传入 `--default-protocol`。
 
-## 模型列表地址
+### 3. 模型列表地址（`--models-path`）
 
-`model sync` 需要知道上游的模型清单从哪里取。取值顺序：
+执行 `lax model sync` 时，网关按以下优先级查找上游模型清单地址：
 
-1. `provider` 上的 `--models-path` 覆盖；
-2. 该账号的有效默认协议对应路由的 `models_path`；
-3. 对 openai-chat 路由自动推导 `/v1/models`。
+1. 供应商配置的 `--models-path`（支持相对路径或完整 URL）；
+2. 该账号有效默认协议对应的模型列表路径；
+3. 若路由为 `openai-chat`，自动推导 `/v1/models`。
 
-`--models-path` 既可以是相对路径，也可以是整条地址。没有列表接口的上游可以用 `model add` 手写模型，或让 `model sync --endpoint` 临时覆盖这一次调用。
+如果上游没有提供模型列表接口，可在[模型管理](/self-hosted/configure/models)中用 `lax model add` 手写声明，或用 `lax model sync --endpoint` 临时指定路径。
 
-## 路径与占位符
+### 4. 自定义凭据头
 
-| 情况 | 规则 |
-| --- | --- |
-| 相对路径 | 必须配 `--base-url` |
-| 整条地址 | 可以省略 `--base-url`；同一供应商的不同协议可以落在不同域名 |
-| `{model}` | 只允许出现在 gemini 路由；替换时按 URL 路径段转义 |
-| 路径里的 `..` | 拒绝 |
-| 查询串与片段 | 不属于路由路径，应该由上游接口自己处理 |
+默认按出站协议自动生成鉴权头：`anthropic` 使用 `x-api-key: <key>`，`gemini` 使用 `x-goog-api-key: <key>`，其余协议使用 `Authorization: Bearer <key>`。
 
-## 凭据头
-
-默认按报文协议生成凭据头：
-
-| 报文协议 | 默认头 |
-| --- | --- |
-| anthropic | `x-api-key: <key>` |
-| gemini | `x-goog-api-key: <key>` |
-| 其余 | `Authorization: Bearer <key>` |
-
-上游要求别的头时，在供应商上声明：
+若上游要求非标准鉴权头，可通过 `--auth-header` 与 `--auth-scheme`（支持 `raw`、`bearer`、`bearer-semicolon`）覆盖：
 
 ```bash
 lax provider set myco --auth-header X-Api-Key --auth-scheme raw
 lax provider set myco --auth-header Authorization --auth-scheme bearer
 ```
 
-`--auth-scheme` 取 `raw`、`bearer` 或 `bearer-semicolon`。声明之后只发这一个头，不再发协议默认头。附加请求头与凭据头分别维护，见[请求头](/self-hosted/gateway/headers)。
+声明自定义凭据头后，网关只发送指定的头，不再附加协议默认头。
 
-## 示例：只声明 gemini
+如需附加其他固定请求头，见[网关请求头](/self-hosted/gateway)。
+
+### 5. 修改、清除单项与删除
+
+`lax provider set` 仅更新传入的参数，未传入的字段保持不变；清除单个字段使用 `lax provider unset`（幂等操作，字段不存在时不报错）：
 
 ```bash
-lax provider add gem-proxy --base-url https://gemini.example.com \
-    --gemini '/v1beta/models/{model}:generateContent' \
-    --default-protocol gemini
+lax provider set myco --responses /v1/responses --default-protocol responses
+lax provider unset myco anthropic models-path
 ```
 
-gemini 的模型名在路径里，因此路由必须保留 `{model}` 占位符。入站路径由网关自己解析，出站路径由这条路由决定。
+<Callout type="info">
+`unset` 不允许把供应商删到一条路由都不剩；要彻底移除供应商请用 `lax provider rm myco`。
 
+若该供应商下仍挂载着账号，默认拒绝删除，传入 `--force` 会删除供应商并自动停用关联账号（历史请求日志保留）。
+</Callout>
+
+## 下一步
+
+- 添加与管理上游账号：[账号](/self-hosted/configure/accounts)
+- 同步与探测可用模型：[模型管理](/self-hosted/configure/models)
+- 了解网关请求头与协议细节：[网关](/self-hosted/gateway)

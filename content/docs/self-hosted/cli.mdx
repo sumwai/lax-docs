@@ -3,17 +3,21 @@ title: 命令行参考
 description: 全局参数、命令分组、输出约定与退出码
 ---
 
-lax 没有交互式界面。除 `serve` 外，所有命令执行完即退出。
+lax 没有交互式界面。除 `serve` 常驻前台外，所有命令执行完即退出。
 
 ## 全局参数
 
-| 参数 | 作用 | 默认 |
+| 参数 | 作用 | 默认值 |
 | --- | --- | --- |
-| `--json` | 以 JSON 输出 | 关 |
+| `--json` | 以 JSON 格式输出到 stdout | 关 |
 | `--config <路径>` | 指定配置文件 | `$XDG_CONFIG_HOME/lax/config.json` |
-| `--db <路径>` | 指定数据库 | `$XDG_DATA_HOME/lax/lax.db` |
+| `--db <路径>` | 指定数据库文件 | `$XDG_DATA_HOME/lax/lax.db` |
 
-`--config` 与 `--db` 必须写在子命令之前。写在之后会报 `flag provided but not defined`。`--json` 可以写在子命令前后任意位置。
+<Callout type="warn">
+`--config` 与 `--db` 必须写在子命令之前（如 `lax --db ./lax.db account ls`）；写在子命令之后会报 `flag provided but not defined`。
+
+`--json` 可以写在子命令前后的任意位置。
+</Callout>
 
 ## 帮助
 
@@ -23,7 +27,9 @@ lax account --help
 lax account add -h
 ```
 
-组级帮助列出子命令；子命令级帮助列出参数。`-h`、`--help` 与 `help` 在组级等价；子命令级用 `-h` 或 `--help`。
+组级帮助列出子命令；子命令级帮助列出参数。
+
+`-h`、`--help` 与 `help` 在组级等价；子命令级用 `-h` 或 `--help`。
 
 ## 命令一览
 
@@ -72,7 +78,7 @@ lax account add <名称> --provider <供应商> --key <key> [--models <模型>] 
 lax account set <名称> [--key <key>]
 ```
 
-换凭据，不删号。`update` 是同义词。
+更换 API Key，不删号。`lax account update` 是同义词。
 
 ### provider add / set / unset
 
@@ -90,7 +96,7 @@ lax provider unset <名称> <字段> [<字段>...]
 lax provider rm <名称> [--force]
 ```
 
-`unset` 的字段可以用 `anthropic`、`openai`、`responses`、`gemini`、`systemone`、`embeddings`、`speech`、`transcriptions`、`models-path`、`default-protocol`、`auth-header`、`auth-scheme` 与 `note`。
+`lax provider unset` 的字段可以用 `anthropic`、`openai`、`responses`、`gemini`、`systemone`、`embeddings`、`speech`、`transcriptions`、`models-path`、`default-protocol`、`auth-header`、`auth-scheme` 与 `note`。
 
 ### provider header
 
@@ -144,7 +150,7 @@ lax model capability unset <模型> [--provider <供应商>] <字段> [<字段>.
 lax model capability ls [<模型>] [--provider <供应商>]
 ```
 
-`unset` 的字段是 `capability`、`voices`、`audio-formats`。
+`lax model capability unset` 的字段是 `capability`、`voices`、`audio-formats`。
 
 ### model dialect
 
@@ -206,11 +212,13 @@ lax route policy test --status <码> [--message <文本>] [--explain]
 | `--quota-order` | `off`、`expiry_asc`、`expiry_desc`、`ratio_desc`、`ratio_asc`、`usd_desc`、`usd_asc` | `off` |
 | `--quota-min-usd` | 不小于 0 的数 | `0` |
 
-`route set` 是[整条覆盖](/self-hosted/route#整条覆盖)，两个额度参数没写也会回到默认值。
+`lax route set` 会[整条覆盖](/self-hosted/route)该条策略配置，未显式传入的额度参数也会恢复为默认值。
 
-`route policy` 只改上游失败之后的处理，不改候选顺序。规则的条件与动作见[失败处理](/self-hosted/route/failure)。
+`lax route policy` 只修改上游失败后的处理动作，不改变候选排序顺序。规则条件与动作见[失败处理](/self-hosted/route/failure)。
 
-`route show` 的人读输出在表格后多一行 `额度排序：… / 最低折合 USD：…`；`--json` 多 `quota_order` 与 `quota_min_usd` 两个字段。
+`lax route show` 的终端表格输出在表格后多一行 `额度排序：… / 最低折合 USD：…`。
+
+`--json` 多 `quota_order` 与 `quota_min_usd` 两个字段。
 
 ### quota
 
@@ -223,9 +231,9 @@ lax quota set <账号> [参数]
 lax quota unset <账号> [字段]
 ```
 
-`quota ls` 列出所有账号的额度快照。没有快照的账号状态写「未刷新」，其余列写 `-`。
+`lax quota ls` 列出所有账号的额度快照。没有快照的账号状态写「未刷新」，其余列写 `-`。
 
-`quota show` 的人读输出：
+`lax quota show` 的默认输出：
 
 | 项 | 行为 |
 | --- | --- |
@@ -236,7 +244,7 @@ lax quota unset <账号> [字段]
 | 颜色 | 终端里状态与进度条带颜色；管道与 `--json` 不带 ANSI |
 | `--settings` | 只显示监控设置（来源、汇率、自动刷新、到期处理、提前天数、额度地址），不读快照；按当前设置重新折算 USD，改过汇率后不需要重新刷新 |
 
-`quota refresh` 手动查一次上游额度，没有 `--due` 参数：
+`lax quota refresh` 手动查一次上游额度，没有 `--due` 参数：
 
 | 项 | 行为 |
 | --- | --- |
@@ -244,9 +252,9 @@ lax quota unset <账号> [字段]
 | 部分失败 | 只保留失败端点的旧值 |
 | 跳过 | 不支持的供应商或 `source=off` 的账号跳过，不算失败 |
 | 退出码 | 任一支持的账号整次刷新失败（凭据被拒或查询失败）为 1；部分端点失败不算 |
-| 副作用 | 见[手动刷新](/self-hosted/route/quota#手动刷新) |
+| 副作用 | 只写额度快照，不改账号状态，也不写请求记录（详见[账号额度](/self-hosted/route/quota)） |
 
-`quota set` 参数：
+`lax quota set` 参数：
 
 | 参数 | 说明 | 默认 |
 | --- | --- | --- |
@@ -257,9 +265,15 @@ lax quota unset <账号> [字段]
 | `--expiry-days` | 临近到期的提前天数，1 到 3650 | `3` |
 | `--base-url` | 额度接口地址；只取协议、主机与端口 | 空，用供应商 `base_url` 的 origin |
 
-表里的默认值是账号没有设置时的取值；不写某项时保留原值，不会回到默认。`quota set` 是 patch 语义，只改显式给出的项；一个都不给是用法错误。修改 `--source` 会清掉旧来源的快照。
+表里的默认值是账号没有设置时的取值；不写某项时保留原值，不会回到默认。
 
-`quota unset` 的字段是 `source`、`fx_rate`、`auto_refresh`、`expiry_mode`、`expiry_days` 与 `base_url`。写字段时只恢复那一项；不写字段时删掉整行设置。
+`lax quota set` 只修改显式给出的项；一个参数都不给是用法错误。
+
+修改 `--source` 会清除旧来源的快照。
+
+`lax quota unset` 的字段是 `source`、`fx_rate`、`auto_refresh`、`expiry_mode`、`expiry_days` 与 `base_url`。
+
+写字段时只恢复那一项；不写字段时清除该账号的全部监控设置。
 
 完整说明见[账号额度](/self-hosted/route/quota)。
 
@@ -294,11 +308,11 @@ lax log tail [-n N] [--follow]
 
 ## 输出约定
 
-- 人读输出到 stdout；
-- `--json` 也输出到 stdout；
-- 错误文本与进度输出到 stderr；
-- 两种输出不混在同一条流里；
-- 空集合输出 `[]`，不是 `null`；
+- 默认终端输出到 stdout。
+- `--json` 也输出到 stdout。
+- 错误文本与进度输出到 stderr。
+- 两种输出不混在同一条流里。
+- 空集合输出 `[]`，不是 `null`。
 - 凭据只显示掩码，不输出明文。
 
 ## 退出码
@@ -306,22 +320,59 @@ lax log tail [-n N] [--follow]
 | 退出码 | 含义 |
 | --- | --- |
 | `0` | 成功 |
-| `1` | 运行失败：上游错误、同步失败、探活无可用模型、额度刷新失败、`doctor` 有检查未通过、非 2xx 请求 |
+| `1` | 运行失败：上游错误、同步失败、探活无可用模型、额度刷新失败、`lax doctor` 有检查未通过、非 2xx 请求 |
 | `2` | 用法错误：参数缺失、取值非法、未知子命令 |
 
 参数名拼错或参数值无法解析时退出码为 1，是这条规则的例外。
 
 ## 示例
 
+常用命令组合：
+
 ```bash
 lax --json account ls
 lax account ls --json
 lax --config ./config.json --db ./lax.db serve
-lax route set glm-4.6 --strategy softmax --temperature 0.05 --explore 1
-lax route explain glm-4.6 --session demo --seed 42 --json
-lax quota refresh cc1
+lax route set deepseek/deepseek-v4.1-flash --strategy softmax --temperature 0.05 --explore 1
+lax route explain deepseek/deepseek-v4.1-flash --session demo --seed 42 --json
+lax quota refresh acct-c
 lax quota ls --json
-lax quota set cc1 --fx-rate 0.14 --expiry-mode deprioritize
-lax route set glm-4.6 --strategy weighted --quota-order ratio_desc --quota-min-usd 1
+lax quota set acct-c --fx-rate 0.14 --expiry-mode deprioritize
+lax route set deepseek/deepseek-v4.1-flash --strategy weighted --quota-order ratio_desc --quota-min-usd 1
+```
+
+`lax route explain` 的脱敏输出示例：
+
+```text
+模型 deepseek/deepseek-v4.1-flash：weighted / 会话 prefer / 来源 模型
+额度排序：off / 最低折合 USD：0.00
+顺序  账号    权重  样本  成功率  平均延迟  得分   概率
+1     acct-a  3     0     50%     -         0.700  -
+2     acct-b  1     0     50%     -         0.300  -
+最终顺序：acct-a → acct-b
+```
+
+`lax quota show` 的脱敏输出示例：
+
+```text
+账号      acct-c（CommandCode）
+状态      正常
+刷新      2026-12-01 09:30
+显示名    示例账号
+
+额度
+  余额        20.9485 USD
+  本期已用    49.0902 USD
+  月限额      70.0387 USD
+  剩余        29.9%  ██████░░░░░░░░░░░░░░
+```
+
+`lax doctor --json` 的脱敏输出示例：
+
+```json
+[
+  {"name": "配置文件", "ok": true, "note": "/path/to/config.json"},
+  {"name": "端口", "ok": false, "note": "listen tcp 127.0.0.1:4567: bind: address already in use"}
+]
 ```
 

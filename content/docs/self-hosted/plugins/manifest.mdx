@@ -1,11 +1,15 @@
 ---
-title: manifest
-description: lax.plugin.json 的字段、权限与校验规则
+title: 插件清单与方言开发
+description: lax.plugin.json 清单字段、models.json 目录与 moejs 方言开发最小可运行样例
 ---
 
-`lax.plugin.json` 是插件包的入口。缺少它、字段不认识或引用对不上，安装会在复制文件之前失败。
+开发一个插件通常需要编写三份声明文件：`lax.plugin.json`（主清单）、`models.json`（模型目录）与 `dialects.json`（方言声明）。
 
-## 最小示例
+使用 `moejs` 运行时还需要入口脚本 `index.js`。
+
+## 主清单 lax.plugin.json
+
+缺少 `lax.plugin.json`、出现未知字段或文件引用对不上时，安装会在复制文件之前失败。
 
 ```json
 {
@@ -41,138 +45,151 @@ description: lax.plugin.json 的字段、权限与校验规则
 }
 ```
 
-## 顶层字段
+### 顶层字段
 
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
 | `schema` | 是 | 固定 `lax.plugin/v1` |
 | `id` | 是 | 插件 ID，建议反向域名，如 `com.example.echo` |
 | `name` | 是 | 显示名 |
-| `version` | 是 | 插件版本；同一版本不能覆盖 |
+| `version` | 是 | 插件版本；同一版本不可覆盖 |
 | `kind` | 是 | 当前只接受 `provider` |
 | `runtime` | 是 | `declarative` 或 `moejs` |
-| `entry` | `moejs` 必填 | 相对包根的 JS 入口，必须在包内 |
-| `abi` | 是 | `lax.plugin/v1` |
-| `requires` | 否 | 操作与运行时要求 |
-| `permissions` | 是 | 权限声明，见下 |
-| `options` | 否 | 配置项声明 |
-| `providers` | 是 | 带来的供应商 |
+| `entry` | `moejs` 必填 | 相对包根的 JS 主文件路径，必须位于包内 |
+| `abi` | 是 | 固定 `lax.plugin/v1` |
+| `requires` | 否 | 依赖的操作与运行时，如 `operation:speech.synthesize@1`、`runtime:moejs` |
+| `permissions` | 是 | 权限声明，超出沙箱边界会在安装或加载时失败 |
+| `options` | 否 | 非敏感配置项声明 |
+| `providers` | 是 | 插件提供的供应商列表 |
 
-未知字段直接拒绝，不做兼容忽略。
+### 供应商与配置项
 
-## 供应商
+`providers[]` 中每项包含 `id`、`name`、`base_url`、`auth`（`scheme` 支持 `raw`、`bearer`、`bearer-semicolon`）、`routes`、`catalog` 与 `dialects`。
 
-| 字段 | 说明 |
-| --- | --- |
-| `id` | 供应商 ID，落库为供应商名 |
-| `name` | 显示名 |
-| `base_url` | 默认地址 |
-| `auth` | 凭据头声明：`{"header":"X-Api-Key","scheme":"raw"}` |
-| `routes` | 每条报文协议的路径 |
-| `catalog` | 模型目录文件 |
-| `dialects` | 方言声明文件 |
+写了 `routes` 后不再按方言推导，若覆盖不到方言的 `upstream_wire` 会在安装时报错。
 
-`routes` 写了就不再按方言推导。覆盖不到方言 `upstream_wire` 的组合会在安装时报错。
+`options` 只用于声明非敏感配置（支持 `string`、`number`、`boolean`，字符串可配 `enum` 与 `default`）。
 
-`auth.scheme` 取 `raw`、`bearer` 或 `bearer-semicolon`，与 `provider add --auth-scheme` 同一套规则。
+API Key 等敏感凭据由账号命令写入并由宿主注入请求头，插件读不到原文。
 
-## 配置项
-
-`options` 声明非敏感配置：
-
-```json
-{
-  "options": {
-    "region": {"type": "string", "enum": ["cn", "us"], "default": "cn"},
-    "timeout": {"type": "number", "default": 30},
-    "verbose": {"type": "boolean", "default": false}
-  }
-}
-```
-
-| 字段 | 说明 |
-| --- | --- |
-| `type` | `string`、`number` 或 `boolean` |
-| `enum` | 仅字符串可用；写入值必须命中 |
-| `default` | 没写过时的回退值 |
-
-secret 不走 `options`。凭据由账号命令写入，宿主注入请求头，插件读不到 key 原文。
-
-## 权限
+### 权限声明
 
 | 权限 | 允许值 | 说明 |
 | --- | --- | --- |
 | `network.mode` | 空、`none`、`host-proxy` | `host-proxy` 时 `hosts` 必填 |
 | `network.schemes` | 只允许 `https` | 不允许明文 http |
-| `network.hosts` | 精确主机或 `*.example.com` | 裸 `*` 拒绝 |
+| `network.hosts` | 精确主机或 `*.example.com` | 拒绝裸 `*` |
 | `network.redirects` | 空、`none`、`same-host` | 不跟随跨主机重定向 |
 | `secrets.mode` | 空、`none`、`host-inject` | 凭据由宿主注入 |
-| `filesystem` | `none` | 当前不允许文件系统访问 |
-| `process` | `none` | 当前不允许进程访问 |
-| `env` | `none` | 当前不允许读取环境变量 |
+| `filesystem` / `process` / `env` | `none` | 当前均不允许访问 |
 
-声明或使用超出这些范围的权限会在安装或加载时失败。
+## 模型目录 models.json
 
-## `requires`
-
-`requires` 是字符串数组，声明插件依赖的操作与运行时，例如：
-
-```json
-["operation:speech.synthesize@1", "operation:speech.transcribe@1", "runtime:moejs"]
-```
-
-缺少依赖的操作在安装时被拒，不会等到第一次请求才失败。
-
-## 模型目录
-
-`catalog` 指向的 JSON 描述这个供应商的模型：
+`catalog` 指向的 JSON 描述供应商的模型、别名与能力声明（不接受未知字段，也不接受 `context_length` 等目录元数据）：
 
 | 字段 | 说明 |
 | --- | --- |
-| `models[].model` | 客户端请求里写的模型名 |
-| `models[].upstream_id` | 上游要的模型名，必填 |
+| `models[].model` | 客户端请求里写的模型名（与 `upstream_id` 不同时自动登记为别名） |
+| `models[].upstream_id` | 上游实际使用的模型名，必填 |
 | `models[].operations` | 操作到方言与能力声明的绑定，至少一项 |
-| `models[].operations.<操作>.dialect` | 这条操作使用的方言 ID |
-| `models[].operations.<操作>.capabilities` | 该操作的能力声明 |
+| `models[].operations.<操作>.dialect` | 该操作使用的方言 ID |
+| `models[].operations.<操作>.capabilities` | 能力声明，仅接受 `supported`、`streaming`、`tools`、`reasoning`、`json_mode`、`vision`、`formats`、`voices`（值可为布尔、字符串数组或 `"unknown"`） |
 
-能力声明只接受以下字段：
+模型目录只声明支持的模型与能力，安装后仍需通过 `lax model probe` 判定账号级可达性。
 
-| 字段 | 取值 | 说明 |
+## 方言与操作绑定
+
+方言描述「这个模型调用这个操作时，上游报文长什么样」。
+
+选号、凭据注入、路由、超时与记账仍由宿主完成。
+
+| 操作 | 入站 | 出站 |
 | --- | --- | --- |
-| `supported` | 布尔或 `"unknown"` | 这个操作是否受支持 |
-| `streaming` | 布尔或 `"unknown"` | 是否支持流式 |
-| `tools` | 布尔或 `"unknown"` | 是否支持工具调用 |
-| `reasoning` | 布尔或 `"unknown"` | 是否有推理输出 |
-| `json_mode` | 布尔或 `"unknown"` | 是否支持 JSON 模式 |
-| `vision` | 布尔或 `"unknown"` | 是否接受图像输入 |
-| `formats` | 字符串数组或 `"unknown"` | 支持的音频格式 |
-| `voices` | 字符串数组或 `"unknown"` | 支持的音色 |
+| `chat.complete@1` | 四条对话协议 | 四条对话协议 |
+| `embeddings.create@1` | `/v1/embeddings` 或 gemini `:embedContent` | `openai-embeddings` |
+| `system.decide@1` | `/v1/systemone` | `systemone` |
+| `speech.synthesize@1` | `/v1/audio/speech` | 方言决定 |
+| `speech.transcribe@1` | `/v1/audio/transcriptions` | 方言决定 |
+
+`lax/` 前缀保留给内置方言（如 `lax/openai-chat@1`、`lax/anthropic@1`、`lax/openai-responses@1`、`lax/gemini@1`、`lax/mimo-chat-speech@1` 等），插件不能使用该前缀。
+
+安装后可用以下命令查看或调整绑定：
+
+```bash
+lax model dialect ls
+lax model dialect ls deepseek/deepseek-v4.1-flash
+lax model dialect set deepseek/deepseek-v4.1-flash chat.complete@1 lax/openai-chat@1 --provider myco
+lax model dialect unset deepseek/deepseek-v4.1-flash chat.complete@1 --provider myco
+```
+
+## hook 方言公开 API
+
+`dialects.json` 中，`implementation.prepare` 与 `implementation.decode` 均为 `hook` 的方言只能由 `moejs` 插件承载（不能一半声明式一半 hook）。
+
+`index.js` 默认导出对象可实现以下三个异步钩子：
+
+| 钩子方法 | 作用 | 返回结构 |
+| --- | --- | --- |
+| `prepare_request(ctx)` | 编排发往上游的请求 | `{ body, path?, headers? }`（`path` 须为 `/` 开头的相对路径，不含 `..`，不能换域名；语音操作不看 `path`） |
+| `decode_response(ctx)` | 解码非流式上游响应 | `{ result: { kind, ... } }`：`media` 带 `body_base64`（语音）；`text` 带 `text`（systemone）；`json` 带 `json`（对话/向量化/决策，形状为上游协议而非入站协议） |
+| `decode_stream(ctx)` | 逐块解码流式上游响应 | 产出 `text`、`thinking`、`tool_start`、`tool_args`、`stop`（含用量）或 `error` 事件 |
+
+网关采用失败关闭策略：
+
+- 模型绑定未注册方言、方言出站协议与模型不一致、或客户端请求流式但方言未实现 `decode_stream` 时直接返回 `400`。
+- `path` 非相对路径或响应 `kind` 与入站协议不匹配时返回 `502`。
+- 流式解码中途失败不换号。
+
+## moejs 最小可运行样例
+
+下面两份文件演示一个在 `openai-chat` 上游请求体中补充自定义字段 `enable_thinking: true`，并原样透传响应 JSON 的 `moejs` 方言。
+
+`dialects.json`：
 
 ```json
 {
-  "supported": true,
-  "streaming": false,
-  "tools": "unknown",
-  "reasoning": "unknown",
-  "json_mode": "unknown",
-  "vision": "unknown",
-  "formats": ["mp3", "wav"],
-  "voices": ["voice-a"]
+  "schema": "lax.dialect/v1",
+  "dialects": [
+    {
+      "id": "com.example.echo/chat@1",
+      "operation": "chat.complete@1",
+      "display_name": "Hook chat over OpenAI",
+      "upstream_wire": "openai-chat",
+      "transport": {"request": "json", "response": "json", "streaming": "sse"},
+      "implementation": {"prepare": "hook", "decode": "hook"}
+    }
+  ]
 }
 ```
 
-`model` 与 `upstream_id` 不同时，安装会把客户端名登记为上游名的别名。模型目录不接受未知字段，也不接受 `context_length`、`max_output` 一类的目录元数据。
+`index.js`：
 
-模型目录只声明事实，不证明可用。安装后仍由 `model probe` 判定可达性。
+```js
+export default {
+  async prepare_request(ctx) {
+    const body = {};
+    for (const key in ctx.body) {
+      body[key] = ctx.body[key];
+    }
+    body.enable_thinking = true;
+    return {body: body};
+  },
 
-## 方言文件
+  async decode_response(ctx) {
+    return {result: {kind: "json", json: ctx.response.body}};
+  }
+};
+```
 
-`dialects` 指向的 JSON 声明方言。声明式方言只承载两条语音操作；hook 方言可以承载任意操作，但必须由 `moejs` 运行时提供。
+安装插件后，运行 `lax plugin doctor com.example.echo` 验证沙箱与导出钩子，或用 `lax model dialect set` 将模型绑定到该方言：
 
-## 版本规则
+```bash
+lax plugin install ./my-plugin --trust sandboxed
+lax plugin doctor com.example.echo
+lax model dialect set echo-v1 chat.complete@1 com.example.echo/chat@1 --provider echo
+```
 
-- `version` 是插件版本，不是上游模型版本；
-- 同一版本不可变，改了包必须升版本；
-- 活动版本可以回滚；
-- `plugin update` 不覆盖旧版本行，只新增并切换指针。
+## 下一步
 
+- [插件概览与安装管理](/self-hosted/plugins)：打包安装、版本升级、回滚与热加载
+- [插件安全与运行时边界](/self-hosted/plugins/security)：查看 `moejs` 沙箱可用 API、超时与资源限制

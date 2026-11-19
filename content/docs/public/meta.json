@@ -1,8 +1,8 @@
 {
   "title": "使用 larkax.com",
   "icon": "Globe",
-  "description": "不用安装，拿 API Key 就能调用托管入口",
+  "description": "不用安装，拿 API Key 就能调用托管网关",
   "root": true,
   "pagesIndex": "index",
-  "pages": ["overview", "quickstart", "usage", "clients", "auth", "errors", "troubleshooting", "privacy"]
+  "pages": ["quickstart", "clients", "troubleshooting", "privacy"]
 }

@@ -1,28 +1,38 @@
 ---
-title: 错误响应
-description: 状态码、四种入站错误体与流式中断的收尾
+title: 错误格式与流式断流处理
+description: 常见 HTTP 状态码、五种协议错误体、SSE 流式转发与断流重试规则
 ---
 
-错误体的形状由入站协议决定，不由上游协议决定。同一句错误发给 anthropic 客户端与 gemini 客户端时，字段不同。
+当客户端遇到 `400`、`429` 或 `503` 报错，或者流式输出到一半突然中断时，运维排查需要明确两件事：网关会按什么格式把错误返回给客户端，以及在什么阶段失败才会触发换号重试。
 
-## 状态码
+## 常见 HTTP 状态码
 
-| 状态 | 含义 |
+网关返回的状态码既可能是自身校验结果，也可能是上游透传的状态。
+
+完整的自动停用与冷却规则见[失败处理](/self-hosted/route/failure)。
+
+| 状态码 | 含义与处理边界 |
 | --- | --- |
-| 400 | 请求不合法：模型名解析失败、协议不相通、缺少能力或路径参数错误；计费类 400 命中失败处理规则时可以停用或冷却账号 |
-| 401 | 上游凭据被拒；是否停用账号见[启用与停用](/self-hosted/configure/accounts#启用与停用) |
-| 403 | 上游拒绝权限或套餐；不停用账号，处理规则见[失败处理](/self-hosted/route/failure) |
-| 404 | 模型名不在清单，或路径不存在 |
-| 405 | 路径存在但方法不对，带 `Allow` |
-| 413 | 请求体超过上限 |
-| 429 | 上游限流 |
-| 500 | 网关内部错误，例如读选号策略或数据库失败 |
-| 502 | 网关没有拿到上游响应，或方言构造失败 |
-| 503 | 模型有提供者，但候选都失败或在冷却 |
+| `400` | 请求不合法：模型名解析失败、协议不相通、缺少声明能力或路径参数错误；计费类 `400` 命中规则时可触发账号停用或冷却 |
+| `401` | 上游凭据被拒；停用条件见[启用与停用](/self-hosted/configure/accounts#启用与停用) |
+| `403` | 上游拒绝权限或套餐；不停用账号，按[失败处理](/self-hosted/route/failure)执行 |
+| `404` | 模型名不在清单，或请求路径不存在 |
+| `405` | 路径存在但 HTTP 方法不匹配，响应头携带 `Allow` |
+| `413` | 请求体超过上限（对话、向量化与语音路径为 32 MiB，`systemone` 为 8 MiB） |
+| `429` | 上游触发限流 |
+| `500` | 网关内部错误，例如读取选号策略或数据库异常 |
+| `502` | 未拿到上游响应，或方言构造失败 |
+| `503` | 模型有提供者，但候选账号全部失败或处于冷却中 |
 
-失败处理的规则见[失败处理](/self-hosted/route/failure)。
+网关返回的错误消息会尽量提取上游 `error.message`，剔除重复状态码与协议内部字段，并附带故障原因与下一步建议。
 
-## 四种错误体
+## 五种协议错误体
+
+错误响应的 JSON 结构由**入站协议**决定，不由上游协议决定。
+
+同一条错误信息返回给 `anthropic` 客户端与 `gemini` 客户端时，字段格式不同。
+
+`/v1/models`、`/healthz`、`405`、未知路径以及网关内部错误没有对应入站协议可依，统一返回 `anthropic` 形状的错误体。
 
 ### anthropic
 
@@ -36,9 +46,9 @@ description: 状态码、四种入站错误体与流式中断的收尾
 }
 ```
 
-`error.type` 取 `invalid_request_error`、`not_found_error`、`authentication_error`、`permission_error`、`api_error` 或 `rate_limit_error`。
+`error.type` 取值为 `invalid_request_error`、`not_found_error`、`authentication_error`、`permission_error`、`api_error` 或 `rate_limit_error`。
 
-### openai-chat
+### openai-chat 与 openai-responses
 
 ```json
 {
@@ -51,9 +61,9 @@ description: 状态码、四种入站错误体与流式中断的收尾
 }
 ```
 
-### openai-responses
+`openai-responses` 与 `openai-chat` 使用相同错误体。
 
-形状与 openai-chat 相同。`param` 与 `code` 显式给 `null`，因为 SDK 会读这两个键是否存在。
+`param` 与 `code` 显式返回 `null`，因为部分客户端 SDK 会校验这两个键是否存在。
 
 ### gemini
 
@@ -67,19 +77,7 @@ description: 状态码、四种入站错误体与流式中断的收尾
 }
 ```
 
-`code` 是本次 HTTP 状态码，`status` 由它映射：
-
-| HTTP | status |
-| --- | --- |
-| 400 | `INVALID_ARGUMENT` |
-| 401 | `UNAUTHENTICATED` |
-| 403 | `PERMISSION_DENIED` |
-| 404 | `NOT_FOUND` |
-| 405 | `UNIMPLEMENTED` |
-| 429 | `RESOURCE_EXHAUSTED` |
-| 500 | `INTERNAL` |
-| 503 | `UNAVAILABLE` |
-| 其它 | `UNKNOWN` |
+`code` 为本次 HTTP 状态码，`status` 由状态码映射得到：`400` 对应 `INVALID_ARGUMENT`、`401` 对应 `UNAUTHENTICATED`、`403` 对应 `PERMISSION_DENIED`、`404` 对应 `NOT_FOUND`、`405` 对应 `UNIMPLEMENTED`、`429` 对应 `RESOURCE_EXHAUSTED`、`500` 对应 `INTERNAL`、`503` 对应 `UNAVAILABLE`，其余状态码映射为 `UNKNOWN`。
 
 ### systemone
 
@@ -92,35 +90,68 @@ description: 状态码、四种入站错误体与流式中断的收尾
 }
 ```
 
-字段名是 `error_type`，不是 `type`。
+字段名为 `error_type`，而非 `type`。
 
-## 没有入站协议时
+## SSE 流式转发与收尾
 
-`/v1/models`、`/healthz`、405、未知路径与内部错误没有客户端协议可依，统一使用 anthropic 形状。
+四条对话协议（`anthropic`、`openai-chat`、`openai-responses`、`gemini`）均支持 SSE 流式输出；`openai-embeddings`、`systemone` 与两条语音协议仅支持非流式响应。
 
-## 流式错误
+| 协议 | 流式帧格式 | 流式错误格式 |
+| --- | --- | --- |
+| `anthropic` | 具名事件：`message_start`、`content_block_delta`、`message_stop` | `event: error` 加 `data: {...}` |
+| `openai-chat` | 仅 `data:` 帧，末尾以 `[DONE]` 结束 | `data: {"error":{...}}` |
+| `openai-responses` | 具名事件：`response.created`、`response.output_text.delta`、`response.completed` | `response.failed` 错误事件 |
+| `gemini` | `data:` 帧，每帧包含一个 `GenerateContentResponse` | 一条 `{"error":{"code":...,"message":...,"status":...}}` 帧 |
 
-流式已经开始后，错误以入站协议的事件帧发到流里：
+入站与出站协议相同时，SSE 帧按字节原样转发，网关仅在旁路读取 token 用量。
 
-| 协议 | 形状 |
-| --- | --- |
-| anthropic | `event: error` 加 `data: {...}` |
-| chat | `data: {"error":{...}}` |
-| responses | `response.failed` 一类错误事件 |
-| gemini | 一条 `{"error":{"code":...,"message":...,"status":...}}` 帧 |
+跨协议转发时，网关将上游 SSE 帧逐帧解码为增量事件，再按客户端入站协议重新编码输出，工具调用与思考内容也会拆分为目标协议的增量事件。
 
-已经写出的字节收不回来，因此流式中断不会换号，也不会把同一个请求重发一遍。
+流式正常结束时，网关按客户端协议发送收尾帧并附带已采集的用量。
 
-## 错误文案
+若上游未发送收尾帧就提前关闭连接，网关会先补发一个错误事件帧，再补发一个带结束原因的收尾帧。
 
-网关的错误消息说明发生了什么与下一步做什么，不只转述上游原文。上游错误会尽量解出 `error.message`，去掉重复的状态码与协议内部字段后返回。
+`gemini` 返回的 `finishReason=SAFETY` 等非正常结束状态会按正常结束语义转发给客户端，原始原因仅记录在网关日志中。
 
-排查入口：
+## 断流与重试规则
+
+<Callout type="warn" title="首字节写出后不再换号重试">
+只有尚未向客户端写出任何字节时，请求失败才可以触发换号重试。
+
+一旦写出首字节，已输出的内容无法撤回，继续重试会导致半截响应重复拼接，因此流式中断不会换号也不会重发请求。
+</Callout>
+
+| 场景 | 停止读取上游 | 请求记录状态 | 冷却与失败计数 | 是否换号重试 |
+| --- | --- | --- | --- | --- |
+| 未写出任何字节前上游失败 | 是 | 记录失败尝试 | 计入失败，按规则冷却 | 是 |
+| 已写出部分内容后上游断流 | 是 | 记录失败尝试 | 计入失败，按规则冷却 | 否 |
+| 客户端主动断开连接 | 是 | 标为客户端断开 | 不计失败，不改变冷却 | 否 |
+
+网关依据上游响应头等待时间与数据读取进度判定连接层失败。
+
+读超时、TLS 握手失败以及 `unexpected EOF` 均按连接层失败处理，并触发对应账号在该模型上的冷却。
+
+在长文本生成过程中，只要上游持续发送数据帧，就不会触发读取超时。
+
+## 排查与手工验证
+
+验证流式转发可使用 `lax model call --stream`，它在进程内启动临时网关，走与外部客户端完全相同的流式路径：
+
+```bash
+lax model call "写一段 200 字介绍" --model deepseek/deepseek-v4.1-flash --stream
+lax model call "hi" --model deepseek/deepseek-v4.1-flash --protocol gemini --stream
+```
+
+线上遇到报错或断流时，常用排查命令如下：
 
 | 命令 | 用途 |
 | --- | --- |
-| `lax log tail` | 看这一次请求的状态、账号与上游错误 |
-| `lax model show` | 看模型在某个账号上的可达性与最近错误 |
-| `lax route explain` | 看候选与排除原因 |
-| `lax doctor` | 检查配置、数据库与端口 |
+| `lax log tail` | 查看单次尝试的状态码、账号与上游错误摘要 |
+| `lax model show` | 查看模型在各账号上的可达性与最近错误 |
+| `lax route explain` | 查看候选账号列表与被排除原因 |
+| `lax doctor` | 检查配置、数据库与监听端口 |
 
+## 下一步
+
+- 查看单条请求日志与错误摘要：[用量统计与请求日志](/self-hosted/operate/logs-usage)
+- 配置自动冷却与换号规则：[失败处理](/self-hosted/route/failure)

@@ -3,7 +3,9 @@ title: 版本与发布
 description: 版本号规则、发布流程、发布包与生产部署
 ---
 
-版本号的事实来源是 `v*` tag。源码里的 `0.1.0-dev` 只是未注入版本号时的默认值。
+版本号的唯一来源是 `v*` tag。
+
+源码里的 `0.1.0-dev` 只是未注入版本号时的默认值。
 
 ## 规则
 
@@ -15,7 +17,9 @@ description: 版本号规则、发布流程、发布包与生产部署
 | 已推送 tag | 不移动、不删除、不重打 |
 | 发错版本 | 发新的 PATCH |
 
-只有 `v*` tag 参与版本推导。`backup-*` 是本地备份标记，不参与发布。
+只有 `v*` tag 参与版本推导。
+
+`backup-*` 是本地备份标记，不参与发布。
 
 ## 版本号注入
 
@@ -31,7 +35,9 @@ description: 版本号规则、发布流程、发布包与生产部署
 git describe --tags --match 'v*' --always --dirty
 ```
 
-去掉前缀 `v` 后作为版本号。tag 之后还有提交时会带上提交数与哈希，例如 `0.2.1-3-gabc1234`。
+去掉前缀 `v` 后作为版本号。
+
+tag 之后还有提交时会带上提交数与哈希，例如 `0.2.1-3-gabc1234`。
 
 ## 发布流程
 
@@ -64,7 +70,9 @@ git push origin master v0.2.2
 | Linux | amd64、arm64 |
 | macOS | amd64、arm64 |
 
-外加 `dist/checksums.txt`。Windows 不在发布范围，原因见[两种安装方式](/self-hosted/install#两种安装方式)。
+外加 `dist/checksums.txt`。
+
+Windows 不在发布范围，原因见[两种安装方式](/self-hosted/install#两种安装方式)。
 
 ## 自动化
 
@@ -73,7 +81,9 @@ git push origin master v0.2.2
 | `.github/workflows/ci.yml` | `master` 与 pull request | 运行 `make check` |
 | `.github/workflows/release.yml` | 推送 `v*` tag | 构建发布包、创建 GitHub Release、正式 tag 自动部署 |
 
-正式 tag 指不带 `-` 的版本。`v0.3.0-rc.1` 这类预发布 tag 会建 Release，但不部署生产。
+正式 tag 指不带 `-` 的版本。
+
+`v0.3.0-rc.1` 这类预发布 tag 会建 Release，但不部署生产。
 
 ## 生产部署
 
@@ -90,8 +100,8 @@ Release 成功后，`deploy` job：
 
 部署只替换二进制，不改配置、数据库、密钥与 systemd unit。
 
-## 下一个版本
+## 下一步
 
-- 每个版本的变更：[更新日志](/releases/changelog)
-- 升级步骤：[升级](/self-hosted/operate/upgrade)
+- [更新日志](/releases/changelog)：查看各版本的具体功能与行为变更
+- [数据与升级](/self-hosted/operate/data-upgrade)：了解生产环境的版本升级步骤
 

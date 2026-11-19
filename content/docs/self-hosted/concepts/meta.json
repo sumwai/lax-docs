@@ -1,5 +1,5 @@
 {
   "title": "核心概念",
   "icon": "Lightbulb",
-  "pages": ["index", "how-it-works", "models-accounts", "request-lifecycle"]
+  "pages": ["how-it-works", "request-lifecycle"]
 }

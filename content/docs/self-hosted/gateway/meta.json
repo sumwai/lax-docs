@@ -1,5 +1,10 @@
 {
   "title": "网关与协议",
   "icon": "Network",
-  "pages": ["index", "protocols", "conversion", "headers", "errors", "realtime", "embeddings", "decision", "speech"]
+  "pagesIndex": "index",
+  "pages": [
+    "conversion",
+    "errors",
+    "non-chat"
+  ]
 }

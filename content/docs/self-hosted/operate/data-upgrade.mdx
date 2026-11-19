@@ -1,0 +1,111 @@
+---
+title: 数据备份与版本升级
+description: 配置文件与数据目录清单、SQLite 与外部数据库备份、平滑升级与回滚步骤
+---
+
+在执行机器迁移、清理磁盘或升级 `lax` 版本前，需要明确运行状态分布在哪些文件里，以及如何确保配置、数据库、加密密钥与插件包成对备份与恢复。
+
+## 配置与数据文件清单
+
+未设置 XDG 环境变量时，配置默认位于 `~/.config/lax`，数据默认位于 `~/.local/share/lax`：
+
+| 路径 | 内容 | 权限 |
+| --- | --- | --- |
+| `$XDG_CONFIG_HOME/lax/config.json` | 监听地址、数据库路径、驱动与 DSN | `0600` |
+| `$XDG_DATA_HOME/lax/lax.db` | SQLite 数据库；使用外部数据库时可能不存在 | `0600` |
+| `$XDG_DATA_HOME/lax/secret.key` | 凭据加密密钥 | `0600` |
+| `$XDG_DATA_HOME/lax/lax.pid` | `lax serve` 运行时的进程号；正常退出时删除 | `0600` |
+| `$XDG_DATA_HOME/lax/plugins/` | 已安装插件包：`installed/` 与 `staging/` | `0700` |
+
+## 备份与整机搬迁
+
+<Callout type="warn" title="四项必须成对备份">
+完整备份必须包含 `config.json`、数据库文件（或外部数据库导出快照）、`secret.key` 与 `plugins/` 目录。
+
+仅有数据库而缺少 `secret.key` 时，已保存的账号凭据将无法解密。  
+仅迁移数据库而遗漏 `plugins/` 目录时，`lax plugin doctor` 会报告本地包缺失。
+</Callout>
+
+SQLite 运行期间可能产生 `lax.db-wal` 与 `lax.db-shm` 文件。
+
+备份前应先停止 `lax serve`，或使用 SQLite 在线备份命令保证一致性：
+
+```bash
+sqlite3 ~/.local/share/lax/lax.db ".backup '/backup/lax-$(date +%F).db'"
+```
+
+整机搬迁按以下顺序操作：
+
+1. 停止旧机器上的 `lax serve`。
+2. 复制 `config.json`、数据库、`secret.key` 与 `plugins/` 目录到新机器。
+3. 在新机器上按需调整 `config.json` 中的 `db` 路径。
+4. 运行 `lax doctor` 验证环境与数据库可读性。
+5. 运行 `lax plugin verify --all` 校验插件包完整性。
+6. 启动 `lax serve`，并使用 `lax model call` 验证转发是否正常。
+
+### 外部数据库与多机共享
+
+使用 PostgreSQL 或 MySQL 时，在 `config.json` 中指定 `driver` 与 `dsn`：
+
+```json
+{
+  "driver": "postgres",
+  "dsn": "postgres://user:pass@127.0.0.1:5432/lax?sslmode=disable"
+}
+```
+
+`secret.key` 仍保存在本机数据目录中，不会随外部数据库自动同步。
+
+多机迁移或共享同一个外部数据库时，必须将同一份 `secret.key` 复制到每台机器的数据目录，确认所有节点的 `driver` 与 `dsn` 指向同一实例，并在每个节点上运行 `lax doctor` 校验连通性与密钥加载；否则各节点加密的凭据无法互相解密。
+
+### 数据清理与旧库迁移
+
+请求记录默认永久保留，目前未提供按时间自动清理命令；如需控制数据库体积，可定期导出并清理历史记录，或迁移至外部数据库归档。
+
+按分钟聚合的选号统计仅保留 30 天，网关启动时会自动清理过期数据。
+
+旧版本的 SQLite 单文件库在首次打开时会自动迁移结构，并在原路径保留 `.bak` 备份文件。
+
+迁移仅执行一次，升级前仍建议先完成手工备份。
+
+## 平滑升级
+
+升级一台已部署的网关实例时，按以下步骤操作（版本号规则与自动部署流程见[版本与发布](/releases)）：
+
+1. 从 [GitHub Releases](https://github.com/sumwai/lax/releases) 下载目标平台的新发布包与 `checksums.txt`。
+2. 校验压缩包的 SHA-256 摘要。
+3. 运行 `./lax version`，确认版本号与发布 tag 一致。
+4. 停止当前正在运行的 `lax serve`。
+5. 按上文清单备份 `config.json`、数据库、`secret.key` 与 `plugins/` 目录。
+6. 替换 `lax` 二进制文件（保留一份旧版二进制以便回滚）。
+7. 运行 `lax doctor` 校验配置、权限与数据库连通性。
+8. 启动 `lax serve`。
+9. 使用 `lax model call` 或接入客户端验证一条请求。
+
+数据库结构会在新版首次启动时自动迁移，跨越多个次版本升级前务必先完成备份。
+
+发布包显示为 `lax 0.2.1`；在 tag 之后仍有新提交的源码构建会附带提交计数与短哈希（规则见[版本号注入](/releases#版本号注入)）。
+
+版本号中带 `-` 的 tag 属于预发布版本（如 `v0.3.0-rc.1`），不会触发生产主机自动部署，详情见[自动化](/releases#自动化)。
+
+## 回滚
+
+自动部署失败时，发布工作流会自动回滚二进制文件（流程见[生产部署](/releases#生产部署)）。
+
+手工回滚二进制与重启服务的示例：
+
+```bash
+cp /path/to/deploy/lax.previous ~/.local/bin/lax
+systemctl --user restart lax.service
+```
+
+<Callout type="warn" title="跨大版本回滚先备库">
+数据库迁移通常只向前演进。
+
+跨大版本回滚前必须先备份当前数据库，并确认旧版本二进制能够兼容当前库结构；若不兼容，需使用升级前备份的数据库与 `secret.key` 一并恢复。
+</Callout>
+
+## 下一步
+
+- 运行环境自检与排障：[健康检查与诊断](/self-hosted/operate/doctor)
+- 查看版本号规则与变更记录：[版本与发布](/releases)

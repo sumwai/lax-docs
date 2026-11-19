@@ -1,0 +1,127 @@
+---
+title: 用量统计与请求日志
+description: 使用 lax usage 核对花销与 token 用量，使用 lax log tail 与 lax plugin logs 排查单次请求与插件异常
+---
+
+日常运维中，最常见的两类需求是「核对一段时间的花销与 token 消耗」以及「追查某次请求落到了哪个账号、为什么失败」。
+
+网关把每次上游尝试（含失败尝试、换号前的尝试与探活请求）都写入请求记录，分别对应 `lax usage` 与 `lax log tail` 两条命令。
+
+## 核对用量与花销（lax usage）
+
+按账号、模型或日期汇总请求次数、token 消耗与估算花费：
+
+```bash
+lax usage
+lax usage --since 24h
+lax usage --since 7d --by model
+lax usage --by day --from '-7d 00:00'
+lax usage --account acct-a
+lax usage --provider deepseek
+lax usage --model deepseek/deepseek-v4.1-flash
+lax usage --json
+```
+
+| 参数 | 说明 | 默认值 |
+| --- | --- | --- |
+| `--by` | 分组维度：`account`、`model`、`day` | `account` |
+| `--since` | 相对时间窗口：`30s`、`15m`、`24h`、`7d`、`3w` | `7d` |
+| `--from` / `--to` | 绝对或相对时间范围；与 `--since` 互斥 | — |
+| `--account` | 仅统计指定账号 | — |
+| `--model` | 仅统计指定真实模型；传入别名时自动解析 | — |
+| `--provider` | 仅统计指定供应商下的账号 | — |
+
+`--since`、`--from`、`--to` 支持包含空格的时间表达式（如 `--from '-1d 11:00'`），含空格时需加引号。
+
+时间范围还支持当天时刻（`11:00`）、相对日时刻（`-1d 11:00`）、本地日期（`2026-10-01` 或 `2026-10-01 11:30`）与 RFC3339；`--to` 为开区间，只写日期或 `-1d` 时包含该日结束时刻。
+
+默认终端表格输出示例（含未定价账号的合计提示）：
+
+```text
+账号     请求   输入 token  输出 token  思考 token  缓存读   缓存写   合成字符  音频秒  估算花费
+acct-a   142    128,400     45,200      1,200       32,000   0        0         0       $0.4120
+acct-b   18     12,000      3,600       0           0        0        0         0       未定价
+合计     160    140,400     48,800      1,200       32,000   0        0         0       $0.4120（1 行未定价未计入）
+```
+
+传入 `--json` 时返回分组对象数组，包含 `key`、`requests`、`in_tokens`、`out_tokens`、`reasoning_tokens`、`cache_read`、`cache_write`、`tts_chars`、`audio_seconds` 与 `cost`（整组未定价时为 `null`）。
+
+若时间窗口内无记录，命令输出 `最近 7d 没有请求记录` 并以退出码 `0` 结束，此时需先确认 `lax serve` 是否正在运行以及客户端请求是否发往网关监听地址。
+
+<Callout type="info" title="花费口径与统计边界">
+花费在查询时按[模型定价](/self-hosted/configure/pricing)实时计算，不写入数据库。
+
+- 思考 token 不单独计价（上游单独上报时由输出单价覆盖）；缓存读写未配置独立单价时回退使用输入单价。
+- 探活请求与普通转发记录共同存储，不能在 `lax usage` 中单独排除。
+- 额度刷新只请求上游只读余额接口，不经过转发路径，因此不写入请求记录（只能在 `lax quota show` 中查看，见[手动刷新](/self-hosted/route/quota#手动刷新)）。
+</Callout>
+
+## 追踪单次请求与错误（lax log tail）
+
+排查某次请求具体落到了哪个账号、走了直通还是跨协议转换，以及上游返回了什么错误时，查看请求记录：
+
+```bash
+lax log tail
+lax log tail -n 50
+lax log tail --follow
+lax log tail --json
+```
+
+`-n` 默认显示最近 `20` 条；启用 `--follow` 时每秒拉取一次新记录并按 ID 递增输出（按 `Ctrl-C` 退出），同时指定 `--json` 时每批新记录输出为一个 JSON 数组。
+
+默认终端表格输出示例：
+
+```text
+时间              协议                    模型                                账号    状态   输入  输出  思考  缓存读  缓存写  耗时    错误
+03-15 14:22:01    anthropic→openai-chat   fast → deepseek/deepseek-v4.1-flash  acct-a  200    120   80    0     0       0       642ms
+03-15 14:21:58    openai-chat             deepseek/deepseek-v4.1-flash         acct-b  429✗   0     0     0     0       0       184ms   rate limit exceeded
+```
+
+单条 `--json` 输出包含完整结构字段：
+
+```json
+{
+  "ts": 1793583928,
+  "inbound": "anthropic",
+  "outbound": "openai-chat",
+  "model": "fast",
+  "model_used": "deepseek/deepseek-v4.1-flash",
+  "account": "acct-a",
+  "http_status": 200,
+  "ok": true,
+  "in_tokens": 120,
+  "out_tokens": 80,
+  "reasoning_tokens": 0,
+  "cache_read": 0,
+  "cache_write": 0,
+  "latency_ms": 642,
+  "error": ""
+}
+```
+
+单次客户端请求按路由策略尝试多个候选账号时，**每次上游尝试都会单独写入一条记录**：失败尝试记为一行，换号重试后的成功尝试记为另一行；流式响应途中中断不会换号，仅保留一条记录。
+
+`http_status` 为上游状态码；未收到任何上游响应（如网络超时或方言构造失败）时记为 `502`。
+
+账号已删除时，`账号` 列显示 `-`。
+
+## 插件日志与隐私边界
+
+插件运行日志与请求记录相互独立，同时输出到 `lax serve` 的标准输出并保存在数据库中。排查插件报错时使用 `lax plugin logs`：
+
+```bash
+lax plugin logs com.example.echo
+lax plugin logs com.example.echo --level warn --limit 100
+lax plugin logs com.example.echo --follow
+```
+
+`--level` 支持 `debug`、`info`、`warn`、`error`，`--limit` 默认 `50` 条。
+
+账号凭据不会写入请求记录、插件日志或命令行输出，请求头与响应头也不会落库。
+
+错误摘要在落库前会经过凭据脱敏清洗，防止上游在报错中回显的 API Key 被写入数据库。
+
+## 下一步
+
+- 配置模型与账号单价：[模型定价](/self-hosted/configure/pricing)
+- 运行环境自检：[健康检查与诊断](/self-hosted/operate/doctor)
