@@ -1,11 +1,57 @@
 ---
 title: 更新日志
-description: 从 v0.1.0 到 v0.2.6 的版本变化
+description: 从 v0.1.0 到 v0.2.11 的版本变化
 ---
 
 版本按发布时间排列。
 
 每个版本只写使用者能看到的能力变化与必要的行为修正，不列内部重构与提交过程。
+
+## v0.2.11
+
+发布时间：2026-11-21
+
+### 变更
+
+- `lax provider add` 支持仅传入 `--base-url`，自动补全 `openai-chat`、 `openai-responses` 与 `anthropic` 三条核心对话协议路由（若 `Base URL` 以 `/v1` 结尾则自动去重，不重复拼接 `/v1`）。
+- 从 `lax provider add` 与 `lax provider set` 移除 `--default-protocol` 参数；未显式覆盖时按 `openai-chat` → `openai-responses` → `anthropic` 自动推导默认协议。
+
+## v0.2.10
+
+发布时间：2026-11-21
+
+### 变更
+
+- 多参数命令的 `--help` 输出按逻辑分组（如「作用域」「Token 单价」「阶梯定价」「分时窗口」「通用」）与固定顺序渲染，替代原有的字母序平铺展示。
+- 同义参数在帮助文本中合并显示（如 `--multiplier, --multiple`），并为 17 个常用命令补充了参数分组与使用示例。
+
+## v0.2.9
+
+发布时间：2026-11-21
+
+### 变更
+
+- 将阶梯定价与分时窗口参数统一合并至 `lax model price set`：支持 `--tier`（如 `200k`、`200k+`、`>200k`、`1m`、`inf`）、`--tier-mode full|split`、`--multiple`（`--multiplier` 别名）以及 `--window`、`--start`、`--end`、`--tz`、`--days`。
+- 精简 `lax model price tier` 与 `lax model price window` 子命令，仅保留 `unset` 与 `clear`。
+
+## v0.2.8
+
+发布时间：2026-11-20
+
+### 新增
+
+- 支持模型阶梯定价（`full` 全量按命中档位 / `split` 分段累计）与分时计费窗口（支持 IANA 时区与星期过滤）。
+- 新增 `lax model price tier`、`lax model price window`、`lax model price rule`（`show` / `set` / `unset`）以及 `lax model price test` 本地试算命令（支持 `--at` 模拟请求时间）。
+- 新请求在落库时计算并快照 `cost` 字段，后续调整模型单价不会追溯改变历史账单；未快照的历史记录在查询时仍按模型定价动态计算。
+
+## v0.2.7
+
+发布时间：2026-11-20
+
+### 变更
+
+- 精简参数错误时的用法提示行，并将完整参数说明与示例收敛到对应子命令的 `--help` 中。
+- 统一嵌套组级帮助排版，补充说明、文档站点链接、示例与下一步提示。
 
 ## v0.2.6
 

@@ -21,8 +21,7 @@ description: openai-embeddings、openai-speech、openai-transcriptions 与 syste
 
 ```bash
 lax provider add myco --base-url https://api.example.com \
-    --embeddings /v1/embeddings \
-    --default-protocol embeddings
+    --embeddings /v1/embeddings
 lax model capability add text-embedding-3-small --capability embedding
 ```
 
@@ -56,8 +55,7 @@ lax model capability add text-embedding-3-small --capability embedding
 ```bash
 lax provider add myco --base-url https://speech.example.com \
     --speech /v1/audio/speech \
-    --transcriptions /v1/audio/transcriptions \
-    --default-protocol speech
+    --transcriptions /v1/audio/transcriptions
 lax model capability add doubao-seed-tts --capability speech --dialect lax/mimo-chat-speech@1
 lax model capability add doubao-seed-asr --capability transcription --dialect lax/mimo-chat-asr@1
 ```
@@ -101,11 +99,11 @@ lax model transcribe hello.mp3 --model doubao-seed-asr --language zh --format js
 
 `systemone` 面向结构化分类、打分与布尔判断场景：接收一份待判断材料 `state` 和一组问题 `questions`，直接返回每个问题的答案与概率，不生成自由文本。
 
-决策模型通常不在上游默认模型清单中，需手工声明供应商路由、模型与协议（仅声明 `systemone` 路由时必须指定 `--default-protocol systemone`）：
+决策模型通常不在上游默认模型清单中，需手工声明供应商路由、模型与协议：
 
 ```bash
 lax provider add typesafe --base-url https://api.typesafe.ai \
-    --systemone /v1/systemone --default-protocol systemone
+    --systemone /v1/systemone
 lax account add acct-c --provider typesafe --key sk-xxx
 lax model add typesafe/jev --account acct-c --protocol systemone
 lax model probe --account acct-c --model typesafe/jev --protocol systemone

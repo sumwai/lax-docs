@@ -88,7 +88,7 @@ lax model add typesafe/jev --account acct-c --protocol systemone
 - 重复执行幂等：从 `forbidden`、`missing` 或 `error` 恢复为 `allowed` 时，会一并清除旧的 HTTP 错误状态与探测时间。
 
 <Callout type="warn">
-对于只声明了 `systemone` 等非对话路由的供应商，必须在供应商配置中显式指定 `--default-protocol`，否则网关无法推导出有效出站协议。
+对于只声明了 `systemone` 等非对话路由的供应商，添加模型时需显式传入 `--protocol`（如 `--protocol systemone`），否则网关无法推导出有效出站协议。
 </Callout>
 
 ### 4. 状态值与排障顺序

@@ -33,13 +33,18 @@ description: 管理内置与自建供应商的 Base URL、八条协议路由、�
 
 ## 最短配置命令
 
-添加一家同时支持 OpenAI 与 Anthropic 协议的自建供应商 `myco`：
+对于标准中转或自建网关，仅传 `--base-url` 即可自动补全 `openai-chat`、`openai-responses` 与 `anthropic` 三条核心对话路由：
+
+```bash
+lax provider add myco --base-url https://api.example.com
+```
+
+若需要显式指定或补充特定协议路径，可直接传入对应路由参数：
 
 ```bash
 lax provider add myco --base-url https://api.example.com \
     --openai /v1/chat/completions \
-    --anthropic /v1/messages \
-    --default-protocol openai
+    --anthropic /v1/messages
 ```
 
 查看当前所有供应商（加 `--verbose` 可展开每条路由的完整地址与模型列表路径）：
@@ -55,7 +60,9 @@ lax provider ls --verbose
 
 ### 1. 八条协议路由与地址写法
 
-新建供应商时**至少需要声明一条路由**，支持以下八个路由参数：
+新建供应商时，若仅传 `--base-url` 而不传任何路由参数，网关会自动生成三条核心对话路由（`/v1/chat/completions`、`/v1/responses`、`/v1/messages`；若 `Base URL` 已以 `/v1` 结尾，则自动去掉重复的 `/v1` 前缀）。
+
+若显式声明路由，支持以下八个路由参数：
 
 - 对话协议：`--openai`（`openai-chat`）、`--responses`（`openai-responses`）、`--anthropic`（`anthropic`）、`--gemini`（`gemini`）
 - 专用协议：`--systemone`（`systemone`）、`--embeddings`（`openai-embeddings`）、`--speech`（`openai-speech`）、`--transcriptions`（`openai-transcriptions`）
@@ -74,8 +81,7 @@ lax provider add myco \
 
 ```bash
 lax provider add myco --base-url https://gemini.example.com \
-    --gemini '/v1beta/models/{model}:generateContent' \
-    --default-protocol gemini
+    --gemini '/v1beta/models/{model}:generateContent'
 ```
 
 <Callout type="warn">
@@ -86,17 +92,13 @@ lax provider add myco --base-url https://gemini.example.com \
 
 ### 2. 默认协议推导
 
-`--default-protocol` 的值必须属于该供应商已声明的路由之一。
-
-未显式指定时，网关按以下顺序从已声明路由中自动选取：
+网关按以下固定顺序从供应商已声明的路由中自动推导默认协议：
 
 1. `openai-chat`
 2. `openai-responses`
 3. `anthropic`
 
-`gemini`、`systemone`、`embeddings`、`speech` 与 `transcriptions` 不会自动成为默认协议。
-
-若供应商只声明了这些路由，必须显式传入 `--default-protocol`。
+`gemini`、`systemone`、`embeddings`、`speech` 与 `transcriptions` 不会成为自动推导的默认对话协议；若某模型需要使用这些专用协议，请在模型维度显式绑定（如 `lax model add --protocol` 或 `lax model capability add`）。
 
 ### 3. 模型列表地址（`--models-path`）
 
@@ -128,7 +130,7 @@ lax provider set myco --auth-header Authorization --auth-scheme bearer
 `lax provider set` 仅更新传入的参数，未传入的字段保持不变；清除单个字段使用 `lax provider unset`（幂等操作，字段不存在时不报错）：
 
 ```bash
-lax provider set myco --responses /v1/responses --default-protocol responses
+lax provider set myco --responses /v1/responses
 lax provider unset myco anthropic models-path
 ```
 

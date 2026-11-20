@@ -28,7 +28,7 @@ lax account --help
 lax account add --help
 ```
 
-组级帮助列出子命令；子命令级帮助列出参数与示例。
+组级帮助列出子命令与文档链接；子命令级帮助按逻辑分组（如「作用域」「协议路由」「通用」）展示参数与示例，并将同义别名合并渲染（如 `--multiplier, --multiple`）。
 
 `-h`、`--help` 与 `help` 在组级等价，`lax help <命令> <子命令>` 直接显示子命令帮助。不带子命令直接运行组（如 `lax account`）与 `lax account --help` 等价，内容写 stdout 并以 `0` 退出。
 
@@ -100,7 +100,7 @@ lax account set <名称> [--key <key>]
 lax provider add <名称> [--base-url <地址>] \
     [--anthropic <路径>] [--openai <路径>] [--responses <路径>] [--gemini <路径>] \
     [--systemone <路径>] [--embeddings <路径>] [--speech <路径>] [--transcriptions <路径>] \
-    [--default-protocol <协议>] [--models-path <路径>] \
+    [--models-path <路径>] \
     [--auth-header <头名>] [--auth-scheme raw|bearer|bearer-semicolon] [--note <备注>]
 ```
 
@@ -109,6 +109,8 @@ lax provider set <名称> [同上]
 lax provider unset <名称> <字段> [<字段>...]
 lax provider rm <名称> [--force]
 ```
+
+`lax provider add` 仅传 `--base-url` 且未指定路由参数时，自动补全 `openai-chat`、`openai-responses` 与 `anthropic` 三条核心对话路由。
 
 `lax provider unset` 的字段可以用 `anthropic`、`openai`、`responses`、`gemini`、`systemone`、`embeddings`、`speech`、`transcriptions`、`models-path`、`default-protocol`、`auth-header`、`auth-scheme` 与 `note`。
 
@@ -149,9 +151,21 @@ lax model alias ls
 ```text
 lax model price set <模型> [--in N] [--out N] [--cache-read N] [--cache-write N] \
     [--tts-char N] [--audio-second N] \
+    [--tier <阈值>] [--tier-mode full|split] \
+    [--window <名称> --start HH:MM --end HH:MM [--tz <时区>] [--days <星期>]] \
+    [--multiplier N | --multiple N] \
     [--provider <供应商> | --account <账号>]
 lax model price unset <模型> <字段> [<字段>...] [--provider <供应商> | --account <账号>]
 lax model price ls [<模型>] [--account <账号>]
+lax model price tier unset <模型> --tier <阈值> [--provider <供应商> | --account <账号>]
+lax model price tier clear <模型> [--provider <供应商> | --account <账号>]
+lax model price window unset <模型> --name <名称> [--provider <供应商> | --account <账号>]
+lax model price window clear <模型> [--provider <供应商> | --account <账号>]
+lax model price rule show <模型> [--provider <供应商> | --account <账号>]
+lax model price rule set <模型> (--file <路径> | --rule-json <JSON>) [--provider <供应商> | --account <账号>]
+lax model price rule unset <模型> [--provider <供应商> | --account <账号>]
+lax model price test <模型> [--in N] [--out N] [--cache-read N] [--cache-write N] \
+    [--tts-char N] [--audio-second N] [--at <时间>] [--provider <供应商> | --account <账号>]
 ```
 
 ### model capability

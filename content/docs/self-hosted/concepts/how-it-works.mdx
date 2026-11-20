@@ -116,9 +116,9 @@ lax model alias unset fast
 3. 否则按 `openai-chat` → `openai-responses` → `anthropic` → `gemini` 顺序取集合中的第一个。
 4. 集合为空时，回退到供应商的有效默认协议。
 
-供应商自身的有效默认协议依次取：显式设置的 `--default-protocol` → 已声明的路由 → 按 `openai-chat` → `openai-responses` → `anthropic` 回退。
+供应商自身的有效默认协议按已声明的路由依 `openai-chat` → `openai-responses` → `anthropic` 顺序自动推导。
 
-`gemini`、`systemone`、`embeddings`、`speech`、`transcriptions` 不会自动成为默认协议，必须显式指定。
+`gemini`、`systemone`、`embeddings`、`speech`、`transcriptions` 不会自动成为默认对话协议，需在模型维度显式绑定（如 `lax model add --protocol`）。
 
 ## 额度快照与转发边界
 

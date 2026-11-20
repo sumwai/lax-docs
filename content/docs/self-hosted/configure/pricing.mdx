@@ -61,7 +61,75 @@ lax model price unset deepseek/deepseek-v4.1-flash --account acct-a out
 
 上游将其单独上报时，`lax usage` 会单列展示；对于将思考计入输出 token 的上游（如 `anthropic`），`--out` 单价已覆盖该部分。
 
-### 3. 「免费（`0`）」与「未定价」的区别
+### 3. 阶梯定价（`--tier`）
+
+当模型按输入上下文长度分段调价（例如超过 200K token 翻倍）时，可在 `lax model price set` 中通过 `--tier` 配置阶梯档位：
+
+```bash
+# 200k 以上档位统一按基础单价的 2 倍计费（默认 full 模式）
+lax model price set claude-sonnet-4 --provider anthropic --tier 200k+ --multiple 2
+
+# 显式配置多档上限与分段累计（split）模式
+lax model price set claude-sonnet-4 --tier 200k --in 3 --out 15 --tier-mode split
+lax model price set claude-sonnet-4 --tier inf --in 6 --out 22.5
+```
+
+- **档位阈值（`--tier`）**：支持 `200k`、`1m`、`32768` 等上限写法，也支持 `200k+`、`>200k` 与 `inf`（表示无上限尾档）。
+- **计费模式（`--tier-mode`）**：`full`（默认，整次请求按命中档位全量计价）或 `split`（各档位区间分段累计）。
+- **单价或倍率**：每个档位可直接指定 `--in` / `--out` / `--cache-read` / `--cache-write`，也可通过 `--multiple`（或 `--multiplier`）基于基础单价按倍率放缩。
+
+删除或清空阶梯档位：
+
+```bash
+lax model price tier unset claude-sonnet-4 --tier 200k
+lax model price tier clear claude-sonnet-4
+```
+
+### 4. 分时计费（`--window`）
+
+针对夜间闲时折扣等分时计费场景，可通过 `--window` 为模型配置时间窗口：
+
+```bash
+lax model price set glm-4.6 --window off-peak --start 00:00 --end 08:00 --tz Asia/Shanghai --multiplier 0.5
+```
+
+| 参数 | 说明 | 备注 |
+| --- | --- | --- |
+| `--window` | 窗口名称（如 `off-peak`） | 传入任意分时参数时必填 |
+| `--start` / `--end` | 起止时刻（`HH:MM`） | `--end` 支持 `24:00` |
+| `--tz` | IANA 时区（如 `Asia/Shanghai`、`UTC`） | 留空时按系统本地时区 |
+| `--days` | 生效星期（如 `sun,mon,sat`） | 留空表示每天生效 |
+| `--multiplier` / `--multiple` | 价格倍率（如 `0.5`） | 也可直接传 `--in` 等具体单价覆盖 |
+
+删除或清空分时窗口：
+
+```bash
+lax model price window unset glm-4.6 --name off-peak
+lax model price window clear glm-4.6
+```
+
+### 5. 完整规则管理与试算（`rule` 与 `test`）
+
+查看当前生效规则、导入完整 JSON 规则或整条清除：
+
+```bash
+lax model price rule show claude-sonnet-4 --account acct-a
+lax model price rule set claude-sonnet-4 --file rule.json
+lax model price rule unset claude-sonnet-4
+```
+
+配置完成后，可用 `lax model price test` 在本地试算单次请求费用（支持 `--at` 模拟请求时间以验证分时窗口）：
+
+```bash
+lax model price test claude-sonnet-4 --in 150000 --out 2000
+lax model price test glm-4.6 --in 10000 --out 500 --at "2026-11-20 02:00"
+```
+
+### 6. 请求级费用快照与「免费（`0`）」/「未定价」
+
+新请求在写入数据库时会按当时的有效定价规则计算并保存 `cost` 快照。
+
+后续调整模型单价、阶梯或分时规则不会追溯修改历史请求记录的费用；对于快照功能上线前留下的历史记录，`lax usage` 在查询时仍按模型当前定价动态计算。
 
 - **`0` 是合法价格**：表示免费或已包含在固定套餐内，终端显示 `0.00`，`--json` 中 `cost` 为数值 `0`。
 - **未定价**：终端显示「未定价」，`--json` 中 `cost` 为 `null`。
