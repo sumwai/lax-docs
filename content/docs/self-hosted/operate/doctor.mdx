@@ -33,13 +33,17 @@ lax doctor --json
 默认终端输出示例：
 
 ```text
-✓ 配置文件      /path/to/.config/lax/config.json
-✓ 数据目录可写  /path/to/.local/share/lax
-✓ 加密密钥      /path/to/.local/share/lax/secret.key
-✓ 配置解析      127.0.0.1:4567 (sqlite)
-✗ 端口          listen tcp 127.0.0.1:4567: bind: address already in use
-✓ 数据库        /path/to/.local/share/lax/lax.db (3 个账号)
+ok    配置文件      /path/to/.config/lax/config.json
+ok    数据目录可写  /path/to/.local/share/lax
+ok    加密密钥      权限 0600
+ok    配置解析      127.0.0.1:4567
+fail  端口          listen tcp 127.0.0.1:4567: bind: address already in use
+ok    数据库        3 个账号
+
+检查完成: 5 项通过, 1 项失败
 ```
+
+有检查失败时，命令还会在 stderr 写一行 `doctor: 1 项检查未通过` 并以 `1` 退出；上面的 stdout 示例不含这一行。
 
 `lax serve` 正在运行时，端口检查项会报告地址已被占用，属于预期结果而非故障。
 

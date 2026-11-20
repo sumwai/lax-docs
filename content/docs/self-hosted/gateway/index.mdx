@@ -29,6 +29,17 @@ flowchart LR
 ```bash
 lax serve
 lax serve --addr 127.0.0.1:9000
+lax serve --json
+```
+
+`--json` 时 stdout 只输出一个启动对象，后续网关、插件与额度刷新日志都写 stderr：
+
+```json
+{
+  "accounts": 3,
+  "addr": "127.0.0.1:4567",
+  "models": 1
+}
 ```
 
 启动过程中，网关不会向上游发送请求，而是依次完成四项准备：

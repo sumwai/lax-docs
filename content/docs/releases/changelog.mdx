@@ -1,11 +1,31 @@
 ---
 title: 更新日志
-description: 从 v0.1.0 到 v0.2.5 的版本变化
+description: 从 v0.1.0 到 v0.2.6 的版本变化
 ---
 
 版本按发布时间排列。
 
 每个版本只写使用者能看到的能力变化与必要的行为修正，不列内部重构与提交过程。
+
+## v0.2.6
+
+发布时间：2026-11-20
+
+### 变更
+
+- 命令行解析迁移到 Cobra，命令树、中文帮助与参数行为保持不变。
+- `--json`、`--config` 与 `--db` 改为全局参数，写在子命令前后或组级命令上都生效。
+- 新增 `lax completion bash|zsh|fish|powershell`，输出对应 shell 的补全脚本。
+- `lax help <命令> <子命令>` 可直接显示子命令帮助；不带子命令运行组与 `--help` 等价，帮助写 stdout 并以 `0` 退出。
+- `lax serve --json` 在 stdout 输出启动对象，运行时日志改走 stderr。
+
+### 修正
+
+- 参数名拼错、参数值非法与未知子命令统一以退出码 `2` 结束，取消原先返回 `1` 的例外。
+- `--json` 失败时 stdout 保持为空，stderr 只写一个含 `error`、`hint`、`command` 与 `exit_code` 的对象。
+- `lax plugin config unset` 删除声明过但从未设置的键时按幂等处理，`--json` 返回 `"removed": false`。
+- `lax plugin logs --follow --json` 改为 NDJSON：每行一个对象，没有新日志时不输出空数组。
+- `lax usage`、`lax log tail`、`lax route explain`、`lax quota show` 与 `lax doctor` 的终端表格统一表头分隔线、右对齐数字与标签列宽。
 
 ## v0.2.5
 

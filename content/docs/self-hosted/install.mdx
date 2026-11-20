@@ -81,13 +81,14 @@ lax init
 | `XDG_CONFIG_HOME` | 配置文件根目录 | 未设置时取 `~/.config`，配置位于 `~/.config/lax/config.json` |
 | `XDG_DATA_HOME` | 数据与密钥根目录 | 未设置时取 `~/.local/share`，数据位于 `~/.local/share/lax` |
 | `LAX_KEY` | 传入上游 `API Key` | `lax account add` / `set` 省略 `--key` 时从此变量读取，避免明文留在 shell 历史 |
-| `--config <路径>` | 临时指定配置文件 | 全局参数，**必须写在子命令之前** |
-| `--db <路径>` | 临时指定数据库文件 | 全局参数，**必须写在子命令之前** |
+| `--config <路径>` | 临时指定配置文件 | 全局参数，写在子命令前后都生效 |
+| `--db <路径>` | 临时指定数据库文件 | 全局参数，写在子命令前后都生效 |
 
 多套环境隔离示例：
 
 ```bash
 lax --config /path/to/config.json --db /path/to/lax.db serve
+lax account ls --config /path/to/config.json --db /path/to/lax.db
 ```
 
 ## 检查本机环境

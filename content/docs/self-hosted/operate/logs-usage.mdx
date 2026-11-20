@@ -38,11 +38,19 @@ lax usage --json
 默认终端表格输出示例（含未定价账号的合计提示）：
 
 ```text
-账号     请求   输入 token  输出 token  思考 token  缓存读   缓存写   合成字符  音频秒  估算花费
-acct-a   142    128,400     45,200      1,200       32,000   0        0         0       $0.4120
-acct-b   18     12,000      3,600       0           0        0        0         0       未定价
-合计     160    140,400     48,800      1,200       32,000   0        0         0       $0.4120（1 行未定价未计入）
+账号    请求    输入   输出  思考  缓存读  缓存写    费用
+──────  ────  ──────  ─────  ────  ──────  ──────  ──────
+acct-a   142  128400  45200  1200   32000       0    0.45
+acct-b    18   12000   3600     0       0       0  未定价
+──────  ────  ──────  ─────  ────  ──────  ──────  ──────
+合计     160  140400  48800  1200   32000       0    0.45
+有 1 行没有单价，它们不计入合计；补价用 lax model price set <模型> --in N --out N
+缓存读写已按模型的缓存单价计入估算花费，未填缓存单价时按输入价算
 ```
+
+数字不带千位分隔符，费用也不带 `$` 前缀；金额小于 `0.01` 时改显四位小数，避免与免费混淆。
+
+时间窗口内出现合成字符或音频秒时，表格会在「缓存写」与「费用」之间追加一列「语音」。
 
 传入 `--json` 时返回分组对象数组，包含 `key`、`requests`、`in_tokens`、`out_tokens`、`reasoning_tokens`、`cache_read`、`cache_write`、`tts_chars`、`audio_seconds` 与 `cost`（整组未定价时为 `null`）。
 
@@ -72,10 +80,13 @@ lax log tail --json
 默认终端表格输出示例：
 
 ```text
-时间              协议                    模型                                账号    状态   输入  输出  思考  缓存读  缓存写  耗时    错误
-03-15 14:22:01    anthropic→openai-chat   fast → deepseek/deepseek-v4.1-flash  acct-a  200    120   80    0     0       0       642ms
-03-15 14:21:58    openai-chat             deepseek/deepseek-v4.1-flash         acct-b  429✗   0     0     0     0       0       184ms   rate limit exceeded
+时间            协议                     模型                             账号     状态  输入  输出  思考  缓存(读/写)   耗时  错误
+──────────────  ───────────────────────  ───────────────────────────────  ──────  ─────  ────  ────  ────  ───────────  ─────  ───────────────────
+03-15 14:22:01  anthropic→openai-chat    fast → deepseek/deepseek-v4.1-…  acct-a    200   120    80     0            0  642ms
+03-15 14:21:58  openai-chat→openai-chat  deepseek/deepseek-v4.1-…         acct-b  429 ✗     0     0     0            0  184ms  rate limit exceeded
 ```
+
+「协议」列总是写成 `入站→出站`；「模型」列在别名命中时写成 `别名 → 真名`，单个名字与整个单元格都按 24 个显示宽度截断。
 
 单条 `--json` 输出包含完整结构字段：
 
@@ -94,6 +105,8 @@ lax log tail --json
   "reasoning_tokens": 0,
   "cache_read": 0,
   "cache_write": 0,
+  "tts_chars": 0,
+  "audio_seconds": 0,
   "latency_ms": 642,
   "error": ""
 }
@@ -116,6 +129,12 @@ lax plugin logs com.example.echo --follow
 ```
 
 `--level` 支持 `debug`、`info`、`warn`、`error`，`--limit` 默认 `50` 条。
+
+同时指定 `--follow --json` 时输出 NDJSON，不是数组：初始行与后续新行都是一个紧凑 JSON 对象，每行可独立解析；没有新日志时不输出空 `[]`。
+
+```bash
+lax plugin logs com.example.echo --follow --json
+```
 
 账号凭据不会写入请求记录、插件日志或命令行输出，请求头与响应头也不会落库。
 

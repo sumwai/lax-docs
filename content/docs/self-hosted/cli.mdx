@@ -13,23 +13,26 @@ lax 没有交互式界面。除 `serve` 常驻前台外，所有命令执行完�
 | `--config <路径>` | 指定配置文件 | `$XDG_CONFIG_HOME/lax/config.json` |
 | `--db <路径>` | 指定数据库文件 | `$XDG_DATA_HOME/lax/lax.db` |
 
-<Callout type="warn">
-`--config` 与 `--db` 必须写在子命令之前（如 `lax --db ./lax.db account ls`）；写在子命令之后会报 `flag provided but not defined`。
-
-`--json` 可以写在子命令前后的任意位置。
+<Callout type="info">
+三个全局参数写在子命令前后都生效，组级命令也接受。`lax --db ./lax.db account ls`、`lax account ls --db ./lax.db` 与 `lax account --db ./lax.db --help` 里的 `--db` 都会生效。
 </Callout>
 
 ## 帮助
 
 ```bash
 lax --help
+lax help
+lax help account
+lax help account ls
 lax account --help
-lax account add -h
+lax account add --help
 ```
 
-组级帮助列出子命令；子命令级帮助列出参数。
+组级帮助列出子命令；子命令级帮助列出参数与示例。
 
-`-h`、`--help` 与 `help` 在组级等价；子命令级用 `-h` 或 `--help`。
+`-h`、`--help` 与 `help` 在组级等价，`lax help <命令> <子命令>` 直接显示子命令帮助。不带子命令直接运行组（如 `lax account`）与 `lax account --help` 等价，内容写 stdout 并以 `0` 退出。
+
+子命令级帮助（`lax <命令> --help` 或 `lax help <命令> <子命令>`）的用法文本写 stderr，命令结果仍写 stdout，脚本可以据此把帮助与结果分开。
 
 ## 命令一览
 
@@ -47,16 +50,27 @@ lax account add -h
 | `log` | 请求记录：`tail` |
 | `doctor` | 自检配置、目录、密钥、数据库与端口 |
 | `version` | 打印版本 |
+| `completion` | 生成 bash、zsh、fish 或 powershell 补全脚本 |
 
 ## 常用子命令参数
 
 ### serve
 
 ```text
-lax serve [--addr <地址>]
+lax serve [--addr <地址>] [--json]
 ```
 
 `--addr` 默认 `127.0.0.1:4567`，临时覆盖配置里的地址。
+
+加 `--json` 时 stdout 只输出一个启动对象，包含实际监听地址、账号数与模型数；启动后的网关、插件与额度刷新日志改写 stderr。脚本因此可以按行读取 stdout，不会在 JSON 后面撞上日志文本。
+
+```json
+{
+  "accounts": 3,
+  "addr": "127.0.0.1:4567",
+  "models": 1
+}
+```
 
 ### account add
 
@@ -308,12 +322,19 @@ lax log tail [-n N] [--follow]
 
 ## 输出约定
 
-- 默认终端输出到 stdout。
-- `--json` 也输出到 stdout。
-- 错误文本与进度输出到 stderr。
-- 两种输出不混在同一条流里。
+- 默认终端输出与 `--json` 的成功结果都写 stdout。
+- 错误文本、进度与运行日志写 stderr，两种输出不混在同一条流里。
+- `--json` 失败时 stdout 为空，stderr 只有一个对象，四个键固定出现：`error`、`hint`、`command` 与 `exit_code`；没有建议时 `hint` 是空串。
 - 空集合输出 `[]`，不是 `null`。
+- `lax plugin logs --follow --json` 是 NDJSON 流：每行一个完整对象，没有新日志时不输出空 `[]`。
+- `lax plugin config unset` 幂等：声明过但从未设置的键也以 `0` 退出，`--json` 返回 `"removed": false`。
 - 凭据只显示掩码，不输出明文。
+
+`--json` 失败示例：
+
+```json
+{"error":"尚未初始化，先运行 lax init","hint":"","command":"lax account ls","exit_code":1}
+```
 
 ## 退出码
 
@@ -321,9 +342,7 @@ lax log tail [-n N] [--follow]
 | --- | --- |
 | `0` | 成功 |
 | `1` | 运行失败：上游错误、同步失败、探活无可用模型、额度刷新失败、`lax doctor` 有检查未通过、非 2xx 请求 |
-| `2` | 用法错误：参数缺失、取值非法、未知子命令 |
-
-参数名拼错或参数值无法解析时退出码为 1，是这条规则的例外。
+| `2` | 用法错误：参数缺失、取值非法、参数名拼错、未知子命令 |
 
 ## 示例
 
@@ -346,26 +365,29 @@ lax route set deepseek/deepseek-v4.1-flash --strategy weighted --quota-order rat
 ```text
 模型 deepseek/deepseek-v4.1-flash：weighted / 会话 prefer / 来源 模型
 额度排序：off / 最低折合 USD：0.00
-顺序  账号    权重  样本  成功率  平均延迟  得分   概率
-1     acct-a  3     0     50%     -         0.700  -
-2     acct-b  1     0     50%     -         0.300  -
+顺序  账号    权重  样本  成功率  平均延迟   得分  概率
+────  ──────  ────  ────  ──────  ────────  ─────  ────
+   1  acct-a     3     0     50%         -  0.700     -
+   2  acct-b     1     0     50%         -  0.700     -
 最终顺序：acct-a → acct-b
 ```
 
 `lax quota show` 的脱敏输出示例：
 
 ```text
-账号      acct-c（CommandCode）
+账号      acct-c（commandcode）
 状态      正常
 刷新      2026-12-01 09:30
 显示名    示例账号
 
 额度
-  余额        20.9485 USD
-  本期已用    49.0902 USD
-  月限额      70.0387 USD
-  剩余        29.9%  ██████░░░░░░░░░░░░░░
+  余额      20.9485 USD
+  本期已用  49.0902 USD
+  月限额    70.0387 USD
+  剩余      29.9%  ██████░░░░░░░░░░░░░░
 ```
+
+周期、限流窗口、上游与末尾说明见[查看额度](/self-hosted/route/quota#查看额度)。
 
 `lax doctor --json` 的脱敏输出示例：
 
